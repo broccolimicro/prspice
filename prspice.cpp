@@ -192,6 +192,7 @@ struct pr_variable
 	bool written;
 	bool read;
 	bool scripted;
+	bool aliased;
 
 	bool is(string name)
 	{
@@ -203,6 +204,10 @@ struct pr_variable
 		names.insert(names.end(), v.names.begin(), v.names.end());
 		sort(names.begin(), names.end());
 		names.resize(unique(names.begin(), names.end()) - names.begin());
+		written = written || v.written;
+		read = read || v.read;
+		scripted = scripted || v.scripted;
+		aliased = aliased || v.aliased;
 	}
 
 	void add_name(string name)
@@ -313,6 +318,21 @@ struct production_rule_set
 		return false;
 	}
 
+	void set_aliased(string name)
+	{
+		variables[set(name)].aliased = true;
+	}
+
+	bool is_aliased(string name)
+	{
+		for (int j = 0; j < (int)variables.size(); j++)
+			if (variables[j].is(name))
+				return variables[j].aliased;
+		return false;
+	}
+
+
+
 	void load_prs(string filename)
 	{
 		// parse the environment prs file and figure out what is driven by the environment
@@ -334,14 +354,22 @@ struct production_rule_set
 				{
 					variables.push_back(pr_variable());
 					variables.back().add_names(names);
+					variables.back().aliased = true;
 				}
 				else if (left == -1)
+				{
 					variables[right].add_name(names[0]);
+					variables[right].aliased = true;
+				}
 				else if (right == -1)
+				{
 					variables[left].add_name(names[1]);
+					variables[left].aliased = true;
+				}
 				else if (left != right)
 				{
 					variables[left].combine(variables[right]);
+					variables[left].aliased = true;
 					variables.erase(variables.begin() + right);
 				}
 			}
@@ -354,7 +382,7 @@ struct production_rule_set
 						set_written(names[i]);
 					else
 						set_read(names[i]);
-				}	
+				}
 			}
 		}
 
@@ -466,7 +494,6 @@ struct production_rule_set
 int main(int argc, char **argv)
 {
 	bool debug = true;
-	string deps = "deps";
 
 	string process = "";
 	string instance = "dut";
@@ -488,14 +515,14 @@ int main(int argc, char **argv)
 			script_file = argv[i];
 		else
 		{
-			printf("usage: cosim -p \"process_name\" -i \"instance_name\" -C \"netgen config\" \"act_file\" \"script_file\"\n");
+			printf("usage: prspice -p \"process_name\" -i \"instance_name\" -C \"netgen config\" \"act_file\" \"script_file\"\n");
 			exit(1);
 		}
 	}
 
 	if (process == "" || config == "" || test_file == "")
 	{
-		printf("usage: cosim -p \"process_name\" -i \"instance_name\" -C \"netgen config\" \"act_file\" \"script_file\"\n");
+		printf("usage: prspice -p \"process_name\" -i \"instance_name\" -C \"netgen config\" \"act_file\" \"script_file\"\n");
 		exit(1);
 	}
 
@@ -503,7 +530,12 @@ int main(int argc, char **argv)
 
 	// Create the run directory
 	exec("mkdir " + dir);
-	exec("cp " + deps + "/* " + dir);
+	if (to_string(getenv("PRSPICE_INSTALL")) == "")
+	{
+		printf("please define the PRSPICE_INSTALL path");
+		exit(1);
+	}
+	exec("cp " + to_string(getenv("PRSPICE_INSTALL")) + "/* " + dir);
 
 	string config_path = find_config(config);
 	
@@ -512,7 +544,7 @@ int main(int argc, char **argv)
 	mangle = mangle.substr(1, mangle.find_last_of("\"")-1);
 
 	// Generate the production rules for the environment
-	exec("cflat " + test_file + " | grep -v \"" + instance + "\" > " + dir + "/env.prs", debug);
+	exec("cflat -DLAYOUT=false " + test_file + " | grep -v \"" + instance + "\" > " + dir + "/env.prs", debug);
 
 	// Get the spice netlist for the device under test
 	exec("netgen -p \"" + process + "\" -C " + config + " " + test_file + " > " + dir + "/dut.spi", debug);
@@ -579,7 +611,7 @@ int main(int argc, char **argv)
 		if ((prset.variables[i].written && !prset.variables[i].read) || 
 			(prset.variables[i].read && !prset.variables[i].written && !prset.variables[i].scripted))
 			verilog += "\twire " + mname + ";\n";
-		else if ((find(subckt.begin(), subckt.end(), mname) != subckt.end() || prset.variables[i].read) && prset.variables[i].scripted)
+		else if (prset.variables[i].scripted)
 			verilog += "\treg " + mname + ";\n";
 		
 	}
@@ -594,7 +626,7 @@ int main(int argc, char **argv)
 
 		if (prset.variables[i].written && find(subckt.begin(), subckt.end(), mname) != subckt.end())
 			verilog += "\t\t$from_prsim(\"" + name + "\", \"" + mname + "\");\n";
-		else if (prset.variables[i].read && !prset.variables[i].written)
+		else if ((prset.variables[i].read || prset.variables[i].aliased) && !prset.variables[i].written)
 			verilog += "\t\t$to_prsim(\"" + mname + "\", \"" + name + "\");\n";
 	}
 
