@@ -408,7 +408,10 @@ struct production_rule_set
 			{
 				char vname[256];
 				if (sscanf(buffer, "watch %s", vname) == 1)
-					command = "$prsim_watch(\"" + to_string(vname) + "\");";
+				{
+					string name = variables[set(to_string(vname))].name();
+					command = "$prsim_watch(\"" + name + "\");";
+				}
 			}
 			else if (strncmp(buffer, "set", 3) == 0)
 			{
@@ -416,8 +419,9 @@ struct production_rule_set
 				char vname[256];
 				if (sscanf(buffer, "set %s %c", vname, &v) == 2)
 				{
-					command = "" + mangle_name(vname, mangle) + " = " + to_string(v) + ";";
-					set_scripted(string(vname));
+					string name = variables[set(to_string(vname))].name();
+					command = "" + mangle_name(name, mangle) + " = " + to_string(v) + ";";
+					set_scripted(name);
 				}
 			}
 			else if (strncmp(buffer, "advance", 7) == 0)
@@ -462,6 +466,8 @@ struct production_rule_set
 int main(int argc, char **argv)
 {
 	bool debug = true;
+	string deps = "deps";
+
 	string process = "";
 	string instance = "dut";
 	string config = "";
@@ -493,6 +499,12 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
+	string dir = test_file.substr(0, test_file.find_last_of("."));
+
+	// Create the run directory
+	exec("mkdir " + dir);
+	exec("cp " + deps + "/* " + dir);
+
 	string config_path = find_config(config);
 	
 	// get the mangle string
@@ -500,15 +512,15 @@ int main(int argc, char **argv)
 	mangle = mangle.substr(1, mangle.find_last_of("\"")-1);
 
 	// Generate the production rules for the environment
-	exec("cflat " + test_file + " | grep -v \"" + instance + "\" > env.prs", debug);
+	exec("cflat " + test_file + " | grep -v \"" + instance + "\" > " + dir + "/env.prs", debug);
 
 	// Get the spice netlist for the device under test
-	exec("netgen -p \"" + process + "\" -C " + config + " " + test_file + " > dut.spi", debug);
+	exec("netgen -p \"" + process + "\" -C " + config + " " + test_file + " > " + dir + "/dut.spi", debug);
 	
 	// Generate a wrapper spice subcircuit to connect up power and ground
 	string spice_process = act_to_spice(process);
 
-	vector<string> subckt = split(exec("grep \".subckt " + spice_process + "\" dut.spi", debug), " \t\n\r");
+	vector<string> subckt = split(exec("grep \".subckt " + spice_process + "\" " + dir + "/dut.spi", debug), " \t\n\r");
 	vector<string> wrapper_subckt;
 
 	for (int i = 2; i < (int)subckt.size(); i++)
@@ -529,7 +541,7 @@ int main(int argc, char **argv)
 	wrapper += " " + spice_process + "\n.ends\n";
 
 	// add it to the spice netlist for the device under test
-	FILE *fdut = fopen("dut.spi", "a");
+	FILE *fdut = fopen((dir + "/dut.spi").c_str(), "a");
 	if (fdut == NULL)
 	{
 		printf("unable to open dut file\n");
@@ -541,12 +553,14 @@ int main(int argc, char **argv)
 	fclose(fdut);
 
 	// Generate the verilog glue
-	production_rule_set prset("env.prs", script_file, mangle);
+	production_rule_set prset(dir + "/env.prs", script_file, mangle);
 	vector<string> demangled_wrapper_subckt;
 	for (int i = 0; i < (int)wrapper_subckt.size(); i++)
 		demangled_wrapper_subckt.push_back(demangle_name(wrapper_subckt[i], mangle));
 
 	string verilog = "";
+	verilog += "`timescale 1ns / 1ps;\n\n";
+
 	verilog += "module wrapper(" + join(wrapper_subckt, ", ") + ");\n";
 	for (int i = 0; i < (int)wrapper_subckt.size(); i++)
 	{
@@ -579,9 +593,9 @@ int main(int argc, char **argv)
 		string mname = mangle_name(name, mangle);
 
 		if (prset.variables[i].written && find(subckt.begin(), subckt.end(), mname) != subckt.end())
-			verilog += "\t\t$from_prsim(" + name + ", " + mname + ");\n";
+			verilog += "\t\t$from_prsim(\"" + name + "\", \"" + mname + "\");\n";
 		else if (prset.variables[i].read && !prset.variables[i].written)
-			verilog += "\t\t$to_prsim(" + mname + ", " + name + ");\n";
+			verilog += "\t\t$to_prsim(\"" + mname + "\", \"" + name + "\");\n";
 	}
 
 	verilog += "\n";
@@ -591,7 +605,7 @@ int main(int argc, char **argv)
 	verilog += "\twrapper dut(" + join(wrapper_subckt, ", ") + ");\n";
 	verilog += "endmodule\n";
 	
-	FILE *fver = fopen("test.v", "w");
+	FILE *fver = fopen((dir + "/test.v").c_str(), "w");
 	fprintf(fver, "%s", verilog.c_str());
 	fclose(fver);
 }
