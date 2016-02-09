@@ -96,7 +96,7 @@ string find_config(string config)
 	string config_path = config;
     if (!file_exists(config_path) && config_path[0] != '/')
     {
-        config_path = string(getenv("VLSI_INSTALL")) + "/lib/netgen/" + config_path;
+        config_path = string(getenv("CAD_HOME")) + "/lib/netgen/" + config_path;
 
         if (!file_exists(config_path) && config_path.find(".conf") == -1)
             config_path += ".conf";

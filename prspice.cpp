@@ -57,7 +57,7 @@ int main(int argc, char **argv)
 	mangle = mangle.substr(1, mangle.find_last_of("\"")-1);
 
 	// Generate the production rules for the environment
-	string flat = "cflat -DLAYOUT=false " + test_file + " | grep -v \"" + instance + "\"";
+	string flat = "cflat -DLAYOUT=false " + test_file + " | prdbase \"" + dir + "/dbase.dat\" \"" + instance + "\"";
 	if (pack)
 		flat += " | prspack " + dir + "/names";
 	flat += " > " + dir + "/env.prs";
@@ -102,7 +102,9 @@ int main(int argc, char **argv)
 	fclose(fdut);
 
 	// Generate the verilog glue
-	production_rule_set prset(dir + "/env.prs", script_file, mangle);
+	production_rule_set prset;
+	prset.load_dbase(dir + "/dbase.dat");
+	prset.load_script(script_file, mangle);
 	vector<string> demangled_wrapper_subckt;
 	for (int i = 0; i < (int)wrapper_subckt.size(); i++)
 		demangled_wrapper_subckt.push_back(demangle_name(wrapper_subckt[i], mangle));
@@ -142,7 +144,10 @@ int main(int argc, char **argv)
 	// connect the prsim environment
 	verilog += "\tinitial begin\n";
 	// hack to prevent initial dc-initialization from messing with prsim
-	verilog += "\t\t#10 $prsim(\"env.prs\");\n";
+	if (pack)
+		verilog += "\t\t#10 $packprsim(\"env.prs\", \"names\");\n";
+	else
+		verilog += "\t\t#10 $prsim(\"env.prs\");\n";
 	for (int i = 0; i < (int)prset.variables.size(); i++)
 	{
 		string name = prset.variables[i].name();

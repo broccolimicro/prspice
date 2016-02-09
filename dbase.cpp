@@ -142,6 +142,51 @@ bool production_rule_set::is_aliased(string name)
 	return false;
 }
 
+void production_rule_set::add_pr(string line)
+{
+	int loc = -1;
+	if (line.size() > 0 && line[0] == '=')
+	{
+		vector<string> names = split(line, "\" \t\n\r=");
+		int left = indexof(names[0]);
+		int right = indexof(names[1]);
+
+		if (left == -1 && right == -1)
+		{
+			variables.push_back(pr_variable());
+			variables.back().add_names(names);
+			variables.back().aliased = true;
+		}
+		else if (left == -1)
+		{
+			variables[right].add_name(names[0]);
+			variables[right].aliased = true;
+		}
+		else if (right == -1)
+		{
+			variables[left].add_name(names[1]);
+			variables[left].aliased = true;
+		}
+		else if (left != right)
+		{
+			variables[left].combine(variables[right]);
+			variables[left].aliased = true;
+			variables.erase(variables.begin() + right);
+		}
+	}
+	else if ((loc = line.find("->")) != -1)
+	{
+		vector<string> names = split(line, " \t\n\"\'+->&|~");
+		for (int i = 0; i < names.size(); i++)
+		{
+			if (i == (int)names.size()-1)
+				set_written(names[i]);
+			else
+				set_read(names[i]);
+		}
+	}
+}
+
 void production_rule_set::load_prs(string filename)
 {
 	// parse the environment prs file and figure out what is driven by the environment
@@ -151,56 +196,10 @@ void production_rule_set::load_prs(string filename)
 	{
 		fgets(buffer, 1023, fenv);
 		string line = buffer;
-		
-		int loc = -1;
-		if (line.size() > 0 && line[0] == '=')
-		{
-			vector<string> names = split(line, "\" \t\n\r=");
-			int left = indexof(names[0]);
-			int right = indexof(names[1]);
-
-			if (left == -1 && right == -1)
-			{
-				variables.push_back(pr_variable());
-				variables.back().add_names(names);
-				variables.back().aliased = true;
-			}
-			else if (left == -1)
-			{
-				variables[right].add_name(names[0]);
-				variables[right].aliased = true;
-			}
-			else if (right == -1)
-			{
-				variables[left].add_name(names[1]);
-				variables[left].aliased = true;
-			}
-			else if (left != right)
-			{
-				variables[left].combine(variables[right]);
-				variables[left].aliased = true;
-				variables.erase(variables.begin() + right);
-			}
-		}
-		else if ((loc = line.find("->")) != -1)
-		{
-			vector<string> names = split(line, " \t\n\"\'+->&|~");
-			for (int i = 0; i < names.size(); i++)
-			{
-				if (i == (int)names.size()-1)
-					set_written(names[i]);
-				else
-					set_read(names[i]);
-			}
-		}
+		add_pr(line);
 	}
 
 	fclose(fenv);
-}
-
-void production_rule_set::load_packedprs(string prsfile, string names)
-{
-	
 }
 
 void production_rule_set::load_script(string filename, string mangle)
@@ -211,7 +210,8 @@ void production_rule_set::load_script(string filename, string mangle)
 	while (!feof(fscr))
 	{
 		memset(buffer, 0, 256);
-		fgets(buffer, 256, fscr);
+		if (fgets(buffer, 256, fscr) == 0)
+			break;
 
 		string command = "";
 		if (strncmp(buffer, "mode run", 8) == 0)
@@ -304,3 +304,38 @@ void production_rule_set::load_script(string filename, string mangle)
 	fclose(fscr);	
 }
 
+void production_rule_set::write_dbase(string filename)
+{
+	FILE *fdbase = fopen(filename.c_str(), "w");
+	for (int i = 0; i < variables.size(); i++)
+	{
+		fprintf(fdbase, "%d%d%d", variables[i].read, variables[i].written, variables[i].aliased);
+		for (int j = 0; j < (int)variables[i].names.size(); j++)
+			fprintf(fdbase, " %s", variables[i].names[j].c_str());
+		fprintf(fdbase, "\n");
+	}
+	fclose(fdbase);
+}
+
+void production_rule_set::load_dbase(string filename)
+{
+	FILE *fdbase = fopen(filename.c_str(), "r");
+	char buffer[1024];
+	while (!feof(fdbase))
+	{
+		if (fgets(buffer, 1023, fdbase) == 0)
+			break;
+		
+		variables.push_back(pr_variable());
+
+		if (buffer[0] == '1')
+			variables.back().read = true;
+		if (buffer[1] == '1')
+			variables.back().written = true;
+		if (buffer[2] == '1')
+			variables.back().aliased = true;
+
+		variables.back().names = split(string(buffer).substr(4), " \n\t");
+	}
+	fclose(fdbase);
+}

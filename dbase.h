@@ -39,9 +39,11 @@ struct production_rule_set
 	bool is_scripted(string name);
 	void set_aliased(string name);
 	bool is_aliased(string name);
+	void add_pr(string filename);
 	void load_prs(string filename);
-	void load_packedprs(string prsfile, string names);
 	void load_script(string filename, string mangle);
+	void write_dbase(string filename);
+	void load_dbase(string filename);
 };
 
 

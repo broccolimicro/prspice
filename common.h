@@ -20,6 +20,23 @@ string to_string(type n)
 	return stm.str();
 }
 
+template <typename type>
+bool vector_intersects(const vector<type> &v1, const vector<type> &v2)
+{
+	typename vector<type>::const_iterator i, j;
+	for (i = v1.begin(), j = v2.begin(); i != v1.end() && j != v2.end();)
+	{
+		if (*j > *i)
+			i++;
+		else if (*i > *j)
+			j++;
+		else
+			return true;
+	}
+
+	return false;
+}
+
 string exec(string cmd, bool debug=true);
 string act_to_spice(string proc);
 vector<string> split(string str, string delim);
