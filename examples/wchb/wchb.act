@@ -1,0 +1,26 @@
+import "globals.act";
+import "encoding.act";
+import "channel.act";
+import "environment.act";
+
+export defproc wchb(globals g; e1of2 L, R)
+{
+	dualrail _R;
+	bool Rv;
+	prs<g.Vdd, g.GND>
+	{
+		g._sReset & R.e & L.e & L.f -> _R.f-
+		g._sReset & R.e & L.e & L.t -> _R.t-
+		g._sReset & Rv -> L.e-
+		~g._pReset | ~R.e & ~L.e & ~L.f -> _R.f+
+		~g._pReset | ~R.e & ~L.e & ~L.t -> _R.t+
+		~g._pReset | ~Rv -> L.e+
+		~_R.f -> R.f+
+		_R.f -> R.f-
+		~_R.t -> R.t+
+		_R.t -> R.t-
+		~_R.f|~_R.t -> Rv+
+		_R.f&_R.t -> Rv-
+	}
+}
+

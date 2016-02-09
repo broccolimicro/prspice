@@ -1,0 +1,32 @@
+.param HSIMVDD=1.0v
+.param HSIMOUTPUT="fsdb&alint"
+
+.param HSIMSPICE=3
+.param HSIMSPEED=1
+.param HSIMCHECKMOSBULK=1
+.param HSIMDIODECURRENT=1
+.param HSIMALLOWEDDV=0.01
+.param HSIMAUTOVDD=0
+.param HSIMITERMODE=1
+.param HSIMSTEADYCURRENT=10n
+.param HSIMANALOG=1
+.param HSIMIGISUB=1
+.param HSIMMODELSTAT=1
+.param HSIMOUTPUTFLUSH=10n
+.param HSIMRISE=0.01ns
+.param HSIMFALL=0.01ns
+.param HSIMNODECAP="*"
+
+.global vdd gnd
+
+vdd vdd 0 dc 1.0v
+vss gnd 0 dc 0.0v
+
+.inc /ufs/cad/lib/spice/st28soi.spi
+.inc dut.spi
+
+.print v(*)
+.print i(vdd)
+.print in(vdd)
+
+.end

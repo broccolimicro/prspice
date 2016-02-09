@@ -1,0 +1,7 @@
+import "wchb.act";
+
+globals g;
+e1of2 L, R;
+wchb dut(g, L, R);
+random_source_e1of2 Lsrc(g, L);
+sink_e1of2 Rsink(g, R);
