@@ -29,6 +29,12 @@ string act_to_spice(string proc)
 	{
 		if (proc[i] == '<' || proc[i] == '>' || proc[i] == ',')
 			result += "_";
+		else if (proc[i] == ':' && i+1 < (int)proc.size() && proc[i+1] == ':')
+		{
+			if (i != 0)
+				result += "_";
+			i++;
+		}
 		else if (proc[i] != ' ')
 			result += proc[i];
 	}

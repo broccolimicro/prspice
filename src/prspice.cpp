@@ -105,19 +105,30 @@ int main(int argc, char **argv)
 	production_rule_set prset;
 	prset.load_dbase(dir + "/dbase.dat");
 	prset.load_script(script_file, mangle);
-	vector<string> demangled_wrapper_subckt;
+	vector<int> vlist;
 	for (int i = 0; i < (int)wrapper_subckt.size(); i++)
-		demangled_wrapper_subckt.push_back(demangle_name(wrapper_subckt[i], mangle));
+	{
+		string name = demangle_name(wrapper_subckt[i], mangle);
+		int index = prset.indexof(name);
+		if (index < 0)
+		{
+			printf("Error: could not find variable '%s' from mangled name '%s'\n", name.c_str(), wrapper_subckt[i].c_str());
+			printf("You will have to edit test.v in order to fix things up for me\n");
+			vlist.push_back(prset.set(name));
+		}
+		else
+			vlist.push_back(index);
+	}
 
 	string verilog = "";
 	verilog += "`timescale 1ns / 1ps;\n\n";
 
 	// First generate the hsim wrapper
 	verilog += "module wrapper(" + join(wrapper_subckt, ", ") + ");\n";
-	for (int i = 0; i < (int)wrapper_subckt.size(); i++)
+	for (int i = 0; i < (int)vlist.size(); i++)
 	{
 		string direction = "output";
-		if (tolower(wrapper_subckt[i]).find("reset") != -1 || prset.is_written(demangled_wrapper_subckt[i]))
+		if (tolower(wrapper_subckt[i]).find("reset") != -1 || prset.variables[vlist[i]].written)
 			direction = "input";
 
 		verilog += "\t" + direction + " " + wrapper_subckt[i] + ";\n";
@@ -131,8 +142,10 @@ int main(int argc, char **argv)
 	for (int i = 0; i < (int)prset.variables.size(); i++)
 	{
 		// If the signal is driven in the prsim script, then its a register. Otherwise, its a wire
-		string mname = mangle_name(prset.variables[i].name(), mangle);
-		if ((prset.variables[i].written && !prset.variables[i].read) || 
+		string name = prset.variables[i].name();
+		string mname = mangle_name(name, mangle);
+		if ((find(vlist.begin(), vlist.end(), i) != vlist.end() && prset.variables[i].read && prset.variables[i].written) || 
+			(prset.variables[i].written && !prset.variables[i].read) || 
 			(prset.variables[i].read && !prset.variables[i].written && !prset.variables[i].scripted))
 			verilog += "\twire " + mname + ";\n";
 		else if (prset.variables[i].scripted)
@@ -143,30 +156,67 @@ int main(int argc, char **argv)
 
 	// connect the prsim environment
 	verilog += "\tinitial begin\n";
+	verilog += "\t\t$timeformat(-12, 0, \"\", 10);\n";
+	verilog += prset.init;
+
 	// hack to prevent initial dc-initialization from messing with prsim
 	if (pack)
-		verilog += "\t\t#10 $packprsim(\"env.prs\", \"names\");\n";
+		verilog += "\t\t$packprsim(\"env.prs\", \"names\");\n";
 	else
-		verilog += "\t\t#10 $prsim(\"env.prs\");\n";
+		verilog += "\t\t$prsim(\"env.prs\");\n";
+	FILE *fxprs = fopen((dir + "/hsim.xprs").c_str(), "w");
+
 	for (int i = 0; i < (int)prset.variables.size(); i++)
 	{
 		string name = prset.variables[i].name();
 		string mname = mangle_name(name, mangle);
 
 		// If the signal is driven by the production rules then it comes from prsim. Otherwise it goes to prsim
-		if (prset.variables[i].written && find(subckt.begin(), subckt.end(), mname) != subckt.end())
+		if (prset.variables[i].written && find(vlist.begin(), vlist.end(), i) != vlist.end())
+		{
 			verilog += "\t\t$from_prsim(\"" + name + "\", \"" + mname + "\");\n";
+			fprintf(fxprs, "= \"%s\" \"%s\"\n", name.c_str(), mname.c_str());
+		}
 		else if ((prset.variables[i].read || prset.variables[i].aliased) && !prset.variables[i].written)
+		{
 			verilog += "\t\t$to_prsim(\"" + mname + "\", \"" + name + "\");\n";
+			fprintf(fxprs, "= \"%s\" \"%s\"\n", name.c_str(), mname.c_str());
+		}
 	}
 	verilog += "\n";
+
+	fclose(fxprs);
 
 	// copy in the loaded script
 	verilog += prset.script;
 	verilog += "\tend\n";
 	verilog += "\n";
 	// define an instance of the wrapper
-	verilog += "\twrapper dut(" + join(wrapper_subckt, ", ") + ");\n";
+	verilog += "\twrapper dut(";
+	for (int i = 0; i < (int)vlist.size(); i++)
+	{
+		if (i != 0)
+			verilog += ", ";
+		verilog += mangle_name(prset.variables[vlist[i]].name(), mangle);
+	}
+	verilog += ");\n\n";
+
+	for (int i = 0; i < (int)prset.variables.size(); i++)
+    {
+        // If the signal is driven in the prsim script, then its a register. Otherwise, its a wire
+		string name = prset.variables[i].name();
+        string mname = mangle_name(name, mangle);
+        if (find(vlist.begin(), vlist.end(), i) != vlist.end() && prset.variables[i].written)
+		{
+			verilog += "\talways @(posedge " + mname + ") begin\n";
+			verilog += "\t\t$display(\"\t%t " + name + " : 1\", $realtime);\n";
+			verilog += "\tend\n\n";
+			verilog += "\talways @(negedge " + mname + ") begin\n";
+			verilog += "\t\t$display(\"\t%t " + name + " : 0\", $realtime);\n";
+			verilog += "\tend\n\n";
+		}
+	}
+
 	verilog += "endmodule\n";
 	
 	FILE *fver = fopen((dir + "/test.v").c_str(), "w");

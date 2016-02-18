@@ -176,7 +176,18 @@ void production_rule_set::add_pr(string line)
 	}
 	else if ((loc = line.find("->")) != -1)
 	{
-		vector<string> names = split(line, " \t\n\"\'+->&|~");
+		bool done = false;
+		while (!done)
+		{
+			if (strncmp(line.c_str(), "weak", 4) == 0)
+				line = line.substr(5);
+			else if (strncmp(line.c_str(), "after", 5) == 0)
+				line = line.substr(8);
+			else
+				done = true;
+		}
+
+		vector<string> names = split(line, " \t\n\"\'+->&|~()");
 		for (int i = 0; i < names.size(); i++)
 		{
 			if (i == (int)names.size()-1)
@@ -192,11 +203,16 @@ void production_rule_set::load_prs(string filename)
 	// parse the environment prs file and figure out what is driven by the environment
 	FILE *fenv = fopen(filename.c_str(), "r");
 	char buffer[1024];
+	string line;
 	while (!feof(fenv))
 	{
-		fgets(buffer, 1023, fenv);
-		string line = buffer;
-		add_pr(line);
+		line.clear();
+		while (!feof(fenv) && (line.size() == 0 || (line[line.size()-1] != '\n' && line[line.size()-1] != '\r')))
+			if (fgets(buffer, 1023, fenv) > 0)
+				line += string(buffer);
+		
+		if (line.size() > 0)
+			add_pr(line);
 	}
 
 	fclose(fenv);
@@ -204,92 +220,106 @@ void production_rule_set::load_prs(string filename)
 
 void production_rule_set::load_script(string filename, string mangle)
 {
+	vector<int> initialized;
 	FILE *fscr = fopen(filename.c_str(), "r");
 	char buffer[256];
+	string line;
 	int delay = 0;
 	while (!feof(fscr))
 	{
-		memset(buffer, 0, 256);
-		if (fgets(buffer, 256, fscr) == 0)
-			break;
+		line.clear();
+		while (!feof(fscr) && (line.size() == 0 || (line[line.size()-1] != '\n' && line[line.size()-1] != '\r')))
+			if (fgets(buffer, 1023, fscr) > 0)
+				line += string(buffer);
+		
+		if (line.size() > 0)
+		{
+			string command = "";
+			if (strncmp(line.c_str(), "mode run", 8) == 0)
+				command = "$prsim_resetmode(0);";
+			else if (strncmp(line.c_str(), "mode reset", 10) == 0)
+				command = "$prsim_resetmode(1);";
+			else if (strncmp(line.c_str(), "norandom", 8) == 0)
+				command = "$prsim_mkrandom(0);";
+			else if (strncmp(line.c_str(), "random", 6) == 0)
+			{
+				command = "$prsim_mkrandom(1);";
+				int m0 = -1, m1 = -1;
+				if (sscanf(line.c_str(), "random %d %d", &m0, &m1) == 2)
+					command += "\n\t\t$prsim_random_setrange(" + to_string(m0) + ", " + to_string(m1) + ");";
+			}
+			else if (strncmp(line.c_str(), "dumptc", 6) == 0)
+			{
+				char dumptc_file[256];
+				if (sscanf(line.c_str(), "dumptc %s", dumptc_file) == 1)
+					command = "$prsim_dump_tc(\"" + string(dumptc_file) + "\");";
+			}
+			else if (strncmp(line.c_str(), "status", 6) == 0)
+			{
+				char v;
+				if (sscanf(line.c_str(), "status %c", &v) == 1)
+				{
+					if (v == 'X')
+						command = "$prsim_status(2);";
+					else
+						command = "$prsim_status(" + to_string(v) + ");";
+				}
+			}
+			else if (strncmp(line.c_str(), "watchall", 8) == 0)
+				command = "$prsim_watchall();";
+			else if (strncmp(line.c_str(), "watch", 5) == 0)
+			{
+				char vname[256];
+				if (sscanf(line.c_str(), "watch %s", vname) == 1)
+				{
+					string name = variables[set(to_string(vname))].name();
+					command = "$prsim_watch(\"" + name + "\");";
+				}
+			}
+			else if (strncmp(line.c_str(), "set", 3) == 0)
+			{
+				char v;
+				char vname[256];
+				if (sscanf(line.c_str(), "set %s %c", vname, &v) == 2)
+				{
+					int id = set(to_string(vname));
+					string name = variables[id].name();
+					set_scripted(name);
+					
+					if (find(initialized.begin(), initialized.end(), id) != initialized.end())
+						command = "" + mangle_name(name, mangle) + " = " + to_string(v) + ";";
+					else
+					{
+						init += "\t\t" + mangle_name(name, mangle) + " = " + to_string(v) + ";\n";
+						initialized.push_back(id);
+					}
+				}
+			}
+			else if (strncmp(line.c_str(), "advance", 7) == 0)
+			{
+				int n = -1;
+				if (sscanf(line.c_str(), "advance %d", &n) == 1)
+					delay += n;
+			}
+			else if (strncmp(line.c_str(), "step", 4) == 0)
+			{
+				int n = -1;
+				if (sscanf(line.c_str(), "step %d", &n) == 1)
+					delay += n*10;
+			}
+			else if (strncmp(line.c_str(), "cycle", 5) == 0)
+				delay += 20;
 
-		string command = "";
-		if (strncmp(buffer, "mode run", 8) == 0)
-			command = "$prsim_resetmode(0);";
-		else if (strncmp(buffer, "mode reset", 10) == 0)
-			command = "$prsim_resetmode(1);";
-		else if (strncmp(buffer, "norandom", 8) == 0)
-			command = "$prsim_mkrandom(0);";
-		else if (strncmp(buffer, "random", 6) == 0)
-		{
-			command = "$prsim_mkrandom(1);";
-			int m0 = -1, m1 = -1;
-			if (sscanf(buffer, "random %d %d", &m0, &m1) == 2)
-				command += "\n\t\t$prsim_random_setrange(" + to_string(m0) + ", " + to_string(m1) + ");";
-		}
-		else if (strncmp(buffer, "dumptc", 6) == 0)
-		{
-			char dumptc_file[256];
-			if (sscanf(buffer, "dumptc %s", dumptc_file) == 1)
-				command = "$prsim_dump_tc(\"" + string(dumptc_file) + "\");";
-		}
-		else if (strncmp(buffer, "status", 6) == 0)
-		{
-			char v;
-			if (sscanf(buffer, "status %c", &v) == 1)
+			if (command != "")
 			{
-				if (v == 'X')
-					command = "$prsim_status(2);";
-				else
-					command = "$prsim_status(" + to_string(v) + ");";
+				script += "\t\t";
+				if (delay > 0)
+				{
+					script += "#" + to_string(delay) + " ";
+					delay = 0;
+				}
+				script += command + "\n";
 			}
-		}
-		else if (strncmp(buffer, "watchall", 8) == 0)
-			command = "$prsim_watchall();";
-		else if (strncmp(buffer, "watch", 5) == 0)
-		{
-			char vname[256];
-			if (sscanf(buffer, "watch %s", vname) == 1)
-			{
-				string name = variables[set(to_string(vname))].name();
-				command = "$prsim_watch(\"" + name + "\");";
-			}
-		}
-		else if (strncmp(buffer, "set", 3) == 0)
-		{
-			char v;
-			char vname[256];
-			if (sscanf(buffer, "set %s %c", vname, &v) == 2)
-			{
-				string name = variables[set(to_string(vname))].name();
-				command = "" + mangle_name(name, mangle) + " = " + to_string(v) + ";";
-				set_scripted(name);
-			}
-		}
-		else if (strncmp(buffer, "advance", 7) == 0)
-		{
-			int n = -1;
-			if (sscanf(buffer, "advance %d", &n) == 1)
-				delay += n;
-		}
-		else if (strncmp(buffer, "step", 4) == 0)
-		{
-			int n = -1;
-			if (sscanf(buffer, "step %d", &n) == 1)
-				delay += n*10;
-		}
-		else if (strncmp(buffer, "cycle", 5) == 0)
-			delay += 50;
-
-		if (command != "")
-		{
-			script += "\t\t";
-			if (delay > 0)
-			{
-				script += "#" + to_string(delay) + " ";
-				delay = 0;
-			}
-			script += command + "\n";
 		}
 	}
 
@@ -321,21 +351,27 @@ void production_rule_set::load_dbase(string filename)
 {
 	FILE *fdbase = fopen(filename.c_str(), "r");
 	char buffer[1024];
+	string line;
 	while (!feof(fdbase))
 	{
-		if (fgets(buffer, 1023, fdbase) == 0)
-			break;
+		line.clear();
+		while (!feof(fdbase) && (line.size() == 0 || (line[line.size()-1] != '\n' && line[line.size()-1] != '\r')))
+			if (fgets(buffer, 1023, fdbase) > 0)
+				line += string(buffer);
 		
-		variables.push_back(pr_variable());
+		if (line.size() > 0)
+		{
+			variables.push_back(pr_variable());
+	
+			if (line[0] == '1')
+				variables.back().read = true;
+			if (line[1] == '1')
+				variables.back().written = true;
+			if (line[2] == '1')
+				variables.back().aliased = true;
 
-		if (buffer[0] == '1')
-			variables.back().read = true;
-		if (buffer[1] == '1')
-			variables.back().written = true;
-		if (buffer[2] == '1')
-			variables.back().aliased = true;
-
-		variables.back().names = split(string(buffer).substr(4), " \n\t");
+			variables.back().names = split(line.substr(4), " \n\t");
+		}
 	}
 	fclose(fdbase);
 }

@@ -27,6 +27,7 @@ struct production_rule_set
 	~production_rule_set();
 
 	vector<pr_variable> variables;
+	string init;
 	string script;
 
 	int indexof(string name);
