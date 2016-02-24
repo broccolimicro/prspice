@@ -28,29 +28,22 @@ int main(int argc, char **argv)
 					found = (strncmp(names[i].c_str(), argv[j], strlen(argv[j])) == 0);
 
 			if ((line.size() > 0 && line[0] == '=') || !found)
-			{
 				prs.add_pr(line);
+			if (line.size() > 0 && line[0] != '=' && !found)
 				printf("%s", line.c_str());
-			}
 		}
 	}
 
-	/*for (int i = (int)prs.variables.size()-1; i >= 0; i--)
+	for (int i = (int)prs.variables.size()-1; i >= 0; i--)
 	{
-		for (int j = (int)prs.variables[i].names.size()-1; j >= 0; j--)
-		{
-			bool found = false;
-			for (int k = 2; k < argc && !found; k++)
-				if (strncmp(prs.variables[i].names[j].c_str(), argv[k], strlen(argv[k])) == 0)
-				{
-					prs.variables[i].names.erase(prs.variables[i].names.begin() + j);
-					found = true;
-				}
-		}
-
-		if (prs.variables[i].names.size() == 0)
+		if (!prs.variables[i].written && !prs.variables[i].read)
 			prs.variables.erase(prs.variables.begin() + i);
-	}*/
+		else
+		{
+			for (int j = 0; j < (int)prs.variables[i].names.size()-1; j++)
+				printf("= \"%s\" \"%s\"\n", prs.variables[i].names[j].c_str(), prs.variables[i].names[j+1].c_str());
+		}
+	}
 
 	if (argc > 1)
 		prs.write_dbase(to_string(argv[1]));

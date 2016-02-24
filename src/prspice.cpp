@@ -105,22 +105,17 @@ int main(int argc, char **argv)
 	production_rule_set prset;
 	prset.load_dbase(dir + "/dbase.dat");
 	prset.load_script(script_file, mangle);
-	printf("Filter: %s\n", join(prset.filter, " ").c_str());
 	vector<int> vlist;
 	for (int i = 0; i < (int)wrapper_subckt.size(); i++)
 	{
 		string name = demangle_name(wrapper_subckt[i], mangle);
 		int index = prset.indexof(name);
 		if (index < 0)
-		{
-			printf("Error: could not find variable '%s' from mangled name '%s'\n", name.c_str(), wrapper_subckt[i].c_str());
-			printf("Warning: trying variable '%s'\n", (instance + "." + name).c_str());
 			index = prset.indexof(instance + "." + name);
-		}
 
 		if (index < 0)
 		{
-			printf("Still failed, you will have to edit test.v in order to fix things up for me\n");
+			printf("Error: could not find variable '%s' from mangled name '%s'. You can fix this by editing 'test.v'.\n", name.c_str(), wrapper_subckt[i].c_str());
 			vlist.push_back(prset.set(name));
 		}
 		else
