@@ -5,6 +5,9 @@
 int main(int argc, char **argv)
 {
 	production_rule_set prs;
+
+	for (int j = 2; j < argc; j++)
+		prs.filter.push_back(argv[j]);
 	
 	vector<string> allowed;
 	char buffer[1024];
@@ -25,13 +28,14 @@ int main(int argc, char **argv)
 					found = (strncmp(names[i].c_str(), argv[j], strlen(argv[j])) == 0);
 
 			if ((line.size() > 0 && line[0] == '=') || !found)
+			{
 				prs.add_pr(line);
-			if (!found)
 				printf("%s", line.c_str());
+			}
 		}
 	}
 
-	for (int i = (int)prs.variables.size()-1; i >= 0; i--)
+	/*for (int i = (int)prs.variables.size()-1; i >= 0; i--)
 	{
 		for (int j = (int)prs.variables[i].names.size()-1; j >= 0; j--)
 		{
@@ -46,7 +50,7 @@ int main(int argc, char **argv)
 
 		if (prs.variables[i].names.size() == 0)
 			prs.variables.erase(prs.variables.begin() + i);
-	}
+	}*/
 
 	if (argc > 1)
 		prs.write_dbase(to_string(argv[1]));

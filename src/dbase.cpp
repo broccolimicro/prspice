@@ -5,6 +5,7 @@ pr_variable::pr_variable()
 	written = false;
 	read = false;
 	scripted = false;
+	aliased = false;
 }
 	
 pr_variable::~pr_variable()
@@ -41,23 +42,45 @@ void pr_variable::add_names(vector<string> name)
 	names.resize(unique(names.begin(), names.end()) - names.begin());
 }
 
-string pr_variable::name()
+string production_rule_set::name(int var)
 {
 	int index = -1;
 	int length = 1000;
 	int num = 1000;
-	for (int i = 0; i < names.size(); i++)
+
+	//int found_index = -1;
+	//int found_length = 1000;
+	//int found_num = 1000;
+	for (int i = 0; i < variables[var].names.size(); i++)
 	{
-		int c = count(names[i].begin(), names[i].end(), '.');
-		if (c < num || (c == num && names[i].size() < length))
+		bool found = false;
+		for (int j = 0; j < (int)filter.size() && !found; j++)
+			found = (strncmp(variables[var].names[i].c_str(), filter[j].c_str(), filter[j].size()) == 0);
+
+		int c = count(variables[var].names[i].begin(), variables[var].names[i].end(), '.');
+		if (!found)
 		{
-			num = c;
-			index = i;
-			length = names[i].size();
+			if (c < num || (c == num && variables[var].names[i].size() < length))
+			{
+				num = c;
+				index = i;
+				length = variables[var].names[i].size();
+			}
 		}
+		/*else
+		{
+			if (c < found_num || (c == found_num && variables[var].names[i].size() < found_length))
+			{
+				found_num = c;
+				found_index = i;
+				found_length = variables[var].names[i].size();
+			}
+		}*/
 	}
 	if (index != -1)
-		return names[index];
+		return variables[var].names[index];
+	//else if (found_index != -1)
+	//	return variables[var].names[found_index];
 	else
 		return "";
 }
@@ -272,7 +295,7 @@ void production_rule_set::load_script(string filename, string mangle)
 				char vname[256];
 				if (sscanf(line.c_str(), "watch %s", vname) == 1)
 				{
-					string name = variables[set(to_string(vname))].name();
+					string name = this->name(set(to_string(vname)));
 					command = "$prsim_watch(\"" + name + "\");";
 				}
 			}
@@ -283,7 +306,7 @@ void production_rule_set::load_script(string filename, string mangle)
 				if (sscanf(line.c_str(), "set %s %c", vname, &v) == 2)
 				{
 					int id = set(to_string(vname));
-					string name = variables[id].name();
+					string name = this->name(id);
 					set_scripted(name);
 					
 					if (find(initialized.begin(), initialized.end(), id) != initialized.end())
@@ -337,6 +360,8 @@ void production_rule_set::load_script(string filename, string mangle)
 void production_rule_set::write_dbase(string filename)
 {
 	FILE *fdbase = fopen(filename.c_str(), "w");
+	fprintf(fdbase, "%s\n", join(filter, " ").c_str());
+
 	for (int i = 0; i < variables.size(); i++)
 	{
 		fprintf(fdbase, "%d%d%d", variables[i].read, variables[i].written, variables[i].aliased);
@@ -352,6 +377,7 @@ void production_rule_set::load_dbase(string filename)
 	FILE *fdbase = fopen(filename.c_str(), "r");
 	char buffer[1024];
 	string line;
+	bool first = true;
 	while (!feof(fdbase))
 	{
 		line.clear();
@@ -361,16 +387,24 @@ void production_rule_set::load_dbase(string filename)
 		
 		if (line.size() > 0)
 		{
-			variables.push_back(pr_variable());
+			if (first)
+			{
+				filter = split(line, " \n\r\t");
+				first = false;
+			}
+			else
+			{
+				variables.push_back(pr_variable());
+		
+				if (line[0] == '1')
+					variables.back().read = true;
+				if (line[1] == '1')
+					variables.back().written = true;
+				if (line[2] == '1')
+					variables.back().aliased = true;
 	
-			if (line[0] == '1')
-				variables.back().read = true;
-			if (line[1] == '1')
-				variables.back().written = true;
-			if (line[2] == '1')
-				variables.back().aliased = true;
-
-			variables.back().names = split(line.substr(4), " \n\t");
+				variables.back().names = split(line.substr(4), " \n\t");
+			}
 		}
 	}
 	fclose(fdbase);

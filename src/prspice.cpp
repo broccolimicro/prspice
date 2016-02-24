@@ -105,6 +105,7 @@ int main(int argc, char **argv)
 	production_rule_set prset;
 	prset.load_dbase(dir + "/dbase.dat");
 	prset.load_script(script_file, mangle);
+	printf("Filter: %s\n", join(prset.filter, " ").c_str());
 	vector<int> vlist;
 	for (int i = 0; i < (int)wrapper_subckt.size(); i++)
 	{
@@ -113,7 +114,13 @@ int main(int argc, char **argv)
 		if (index < 0)
 		{
 			printf("Error: could not find variable '%s' from mangled name '%s'\n", name.c_str(), wrapper_subckt[i].c_str());
-			printf("You will have to edit test.v in order to fix things up for me\n");
+			printf("Warning: trying variable '%s'\n", (instance + "." + name).c_str());
+			index = prset.indexof(instance + "." + name);
+		}
+
+		if (index < 0)
+		{
+			printf("Still failed, you will have to edit test.v in order to fix things up for me\n");
 			vlist.push_back(prset.set(name));
 		}
 		else
@@ -142,7 +149,7 @@ int main(int argc, char **argv)
 	for (int i = 0; i < (int)prset.variables.size(); i++)
 	{
 		// If the signal is driven in the prsim script, then its a register. Otherwise, its a wire
-		string name = prset.variables[i].name();
+		string name = prset.name(i);
 		string mname = mangle_name(name, mangle);
 		if ((find(vlist.begin(), vlist.end(), i) != vlist.end() && prset.variables[i].read && prset.variables[i].written) || 
 			(prset.variables[i].written && !prset.variables[i].read) || 
@@ -168,7 +175,7 @@ int main(int argc, char **argv)
 
 	for (int i = 0; i < (int)prset.variables.size(); i++)
 	{
-		string name = prset.variables[i].name();
+		string name = prset.name(i);
 		string mname = mangle_name(name, mangle);
 
 		// If the signal is driven by the production rules then it comes from prsim. Otherwise it goes to prsim
@@ -177,7 +184,7 @@ int main(int argc, char **argv)
 			verilog += "\t\t$from_prsim(\"" + name + "\", \"" + mname + "\");\n";
 			fprintf(fxprs, "= \"%s\" \"%s\"\n", name.c_str(), mname.c_str());
 		}
-		else if ((prset.variables[i].read || prset.variables[i].aliased) && !prset.variables[i].written)
+		else if ((prset.variables[i].read || (prset.variables[i].aliased && name != "")) && !prset.variables[i].written)
 		{
 			verilog += "\t\t$to_prsim(\"" + mname + "\", \"" + name + "\");\n";
 			fprintf(fxprs, "= \"%s\" \"%s\"\n", name.c_str(), mname.c_str());
@@ -197,14 +204,14 @@ int main(int argc, char **argv)
 	{
 		if (i != 0)
 			verilog += ", ";
-		verilog += mangle_name(prset.variables[vlist[i]].name(), mangle);
+		verilog += mangle_name(prset.name(vlist[i]), mangle);
 	}
 	verilog += ");\n\n";
 
 	for (int i = 0; i < (int)prset.variables.size(); i++)
     {
         // If the signal is driven in the prsim script, then its a register. Otherwise, its a wire
-		string name = prset.variables[i].name();
+		string name = prset.name(i);
         string mname = mangle_name(name, mangle);
         if (find(vlist.begin(), vlist.end(), i) != vlist.end() && prset.variables[i].written)
 		{

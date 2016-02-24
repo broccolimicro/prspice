@@ -17,7 +17,6 @@ struct pr_variable
 	void combine(pr_variable v);
 	void add_name(string name);
 	void add_names(vector<string> name);
-	string name();
 };
 
 struct production_rule_set
@@ -26,6 +25,7 @@ struct production_rule_set
 	production_rule_set(string prsfile, string scriptfile, string mangle);
 	~production_rule_set();
 
+	vector<string> filter;
 	vector<pr_variable> variables;
 	string init;
 	string script;
@@ -45,6 +45,7 @@ struct production_rule_set
 	void load_script(string filename, string mangle);
 	void write_dbase(string filename);
 	void load_dbase(string filename);
+	string name(int var);
 };
 
 

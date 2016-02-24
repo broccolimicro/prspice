@@ -147,7 +147,7 @@ string demangle_name(string name, string mangle)
 				result += "_";
 			else
 			{
-				int loc = atoi(name.data() + i);
+				int loc = name[i] - '0';
 				result += mangle[loc];
 			}
 		}
