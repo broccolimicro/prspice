@@ -2,9 +2,13 @@
 
 pr_variable::pr_variable()
 {
+	depth = 1000000;
+	filtered = true;
+
 	written = false;
 	read = false;
 	scripted = false;
+	asserted = false;
 	aliased = false;
 }
 	
@@ -14,154 +18,169 @@ pr_variable::~pr_variable()
 
 bool pr_variable::is(string name)
 {
-	return find(names.begin(), names.end(), name) != names.end();
+	return names.contains(name);
 }
 
 void pr_variable::combine(pr_variable v)
 {
-	names.insert(names.end(), v.names.begin(), v.names.end());
-	sort(names.begin(), names.end());
-	names.resize(unique(names.begin(), names.end()) - names.begin());
+	names.merge(v.names);
+
+	if ((!v.filtered || filtered) && (v.depth < depth || v.depth == depth && v.name.size() < name.size()))
+	{
+		name = v.name;
+		depth = v.depth;
+		filtered = v.filtered;
+	}
+
 	written = written || v.written;
 	read = read || v.read;
 	scripted = scripted || v.scripted;
+	asserted = asserted || v.asserted;
 	aliased = aliased || v.aliased;
 }
 
-void pr_variable::add_name(string name)
+void pr_variable::add_name(string name, bool is_filtered)
 {
-	names.push_back(name);
-	sort(names.begin(), names.end());
-	names.resize(unique(names.begin(), names.end()) - names.begin());
-}
-
-void pr_variable::add_names(vector<string> name)
-{
-	names.insert(names.end(), name.begin(), name.end());
-	sort(names.begin(), names.end());
-	names.resize(unique(names.begin(), names.end()) - names.begin());
-}
-
-string production_rule_set::name(int var)
-{
-	int index = -1;
-	int length = 1000;
-	int num = 1000;
-
-	//int found_index = -1;
-	//int found_length = 1000;
-	//int found_num = 1000;
-	for (int i = 0; i < variables[var].names.size(); i++)
+	int c = count(name.begin(), name.end(), '.');
+	if ((!is_filtered || filtered) && (c < depth || c == depth && name.size() < this->name.size()))
 	{
-		bool found = false;
-		for (int j = 0; j < (int)filter.size() && !found; j++)
-			found = (strncmp(variables[var].names[i].c_str(), filter[j].c_str(), filter[j].size()) == 0);
-
-		int c = count(variables[var].names[i].begin(), variables[var].names[i].end(), '.');
-		if (!found)
-		{
-			if (c < num || (c == num && variables[var].names[i].size() < length))
-			{
-				num = c;
-				index = i;
-				length = variables[var].names[i].size();
-			}
-		}
-		/*else
-		{
-			if (c < found_num || (c == found_num && variables[var].names[i].size() < found_length))
-			{
-				found_num = c;
-				found_index = i;
-				found_length = variables[var].names[i].size();
-			}
-		}*/
+		this->name = name;
+		depth = c;
+		filtered = is_filtered;
 	}
-	if (index != -1)
-		return variables[var].names[index];
-	//else if (found_index != -1)
-	//	return variables[var].names[found_index];
-	else
-		return "";
+
+	names.insert(name);
 }
 
-production_rule_set::production_rule_set() {}
+void pr_variable::add_names(vector<string> name, vector<bool> is_filtered)
+{
+	for (int i = 0; i < name.size() && i < is_filtered.size(); i++)
+		add_name(name[i], is_filtered[i]);
+}
+
+production_rule_set::production_rule_set()
+{
+}
+
 production_rule_set::production_rule_set(string prsfile, string scriptfile, string mangle)
 {
 	load_prs(prsfile);
 	load_script(scriptfile, mangle);
 }
-production_rule_set::~production_rule_set() {}
 
-int production_rule_set::indexof(string name)
+production_rule_set::~production_rule_set()
 {
-	for (int i = 0; i < variables.size(); i++)
-		if (variables[i].is(name))
-			return i;
-	return -1;
 }
 
-int production_rule_set::set(string name)
+bool production_rule_set::filter_name(string name)
 {
-	int idx = indexof(name);
-	if (idx == -1)
+	for (int j = 0; j < (int)filter.size(); j++)
+		if (strncmp(name.c_str(), filter[j].c_str(), filter[j].size()) == 0)
+			return true;
+	return false;
+}
+
+vector<bool> production_rule_set::filter_names(vector<string> names)
+{
+	vector<bool> result;
+	result.reserve(names.size());
+	for (int i = 0; i < (int)names.size(); i++)
+		result.push_back(filter_name(names[i]));
+	return result;
+}
+
+pr_index production_rule_set::indexof(string name)
+{
+	map<string, pr_index>::iterator loc;
+	if (variable_map.find(name, &loc))
+		return loc->second;
+	return variables.end();
+}
+
+pr_index production_rule_set::set(string name)
+{
+	pr_index idx = indexof(name);
+	if (idx == variables.end())
 	{
-		idx = variables.size();
-		variables.push_back(pr_variable());
-		variables.back().names.push_back(name);
+		idx = new_var();
+		idx->add_name(name, filter_name(name));
+		variable_map.insert(name, idx);
 	}
 	return idx;
 }
 
-void production_rule_set::set_written(string name)
+pr_index production_rule_set::set_written(string name)
 {
-	variables[set(name)].written = true;
+	pr_index index = set(name);
+	index->written = true;
+	return index;
 }
 
 bool production_rule_set::is_written(string name)
 {
-	for (int j = 0; j < (int)variables.size(); j++)
-		if (variables[j].is(name))
-			return variables[j].written;
+	pr_index index = indexof(name);
+	if (index != variables.end())
+		return index->written;
 	return false;
 }
 
-void production_rule_set::set_read(string name)
+pr_index production_rule_set::set_read(string name)
 {
-	variables[set(name)].read = true;
+	pr_index index = set(name);
+	index->read = true;
+	return index;
 }
 
 bool production_rule_set::is_read(string name)
 {
-	for (int j = 0; j < (int)variables.size(); j++)
-		if (variables[j].is(name))
-			return variables[j].read;
+	pr_index index = indexof(name);
+	if (index != variables.end())
+		return index->read;
 	return false;
 }
 
-void production_rule_set::set_scripted(string name)
+pr_index production_rule_set::set_scripted(string name)
 {
-	variables[set(name)].scripted = true;
+	pr_index index = set(name);
+	index->scripted = true;
+	return index;
 }
 
 bool production_rule_set::is_scripted(string name)
 {
-	for (int j = 0; j < (int)variables.size(); j++)
-		if (variables[j].is(name))
-			return variables[j].scripted;
+	pr_index index = indexof(name);
+	if (index != variables.end())
+		return index->scripted;
 	return false;
 }
 
-void production_rule_set::set_aliased(string name)
+pr_index production_rule_set::set_asserted(string name)
 {
-	variables[set(name)].aliased = true;
+	pr_index index = set(name);
+	index->asserted = true;
+	return index;
+}
+
+bool production_rule_set::is_asserted(string name)
+{
+	pr_index index = indexof(name);
+	if (index != variables.end())
+		return index->asserted;
+	return false;
+}
+
+pr_index production_rule_set::set_aliased(string name)
+{
+	pr_index index = set(name);
+	index->aliased = true;
+	return index;
 }
 
 bool production_rule_set::is_aliased(string name)
 {
-	for (int j = 0; j < (int)variables.size(); j++)
-		if (variables[j].is(name))
-			return variables[j].aliased;
+	pr_index index = indexof(name);
+	if (index != variables.end())
+		return index->aliased;
 	return false;
 }
 
@@ -171,30 +190,34 @@ void production_rule_set::add_pr(string line)
 	if (line.size() > 0 && line[0] == '=')
 	{
 		vector<string> names = split(line, "\" \t\n\r=");
-		int left = indexof(names[0]);
-		int right = indexof(names[1]);
+		pr_index left  = indexof(names[0]);
+		pr_index right = indexof(names[1]);
 
-		if (left == -1 && right == -1)
+		if (left == variables.end() && right == variables.end())
 		{
-			variables.push_back(pr_variable());
-			variables.back().add_names(names);
-			variables.back().aliased = true;
+			left = new_var();
+			variable_map.insert(names[0], left);
+			variable_map.insert(names[1], left);
+			left->add_names(names, filter_names(names));
+			left->aliased = true;
 		}
-		else if (left == -1)
+		else if (left == variables.end())
 		{
-			variables[right].add_name(names[0]);
-			variables[right].aliased = true;
+			variable_map.insert(names[0], right);
+			right->add_name(names[0], filter_name(names[0]));
+			right->aliased = true;
 		}
-		else if (right == -1)
+		else if (right == variables.end())
 		{
-			variables[left].add_name(names[1]);
-			variables[left].aliased = true;
+			variable_map.insert(names[1], left);
+			left->add_name(names[1], filter_name(names[0]));
+			left->aliased = true;
 		}
 		else if (left != right)
 		{
-			variables[left].combine(variables[right]);
-			variables[left].aliased = true;
-			variables.erase(variables.begin() + right);
+			left->combine(*right);
+			left->aliased = true;
+			replace_var(right, left);
 		}
 	}
 	else if ((loc = line.find("->")) != -1)
@@ -225,14 +248,9 @@ void production_rule_set::load_prs(string filename)
 {
 	// parse the environment prs file and figure out what is driven by the environment
 	FILE *fenv = fopen(filename.c_str(), "r");
-	char buffer[1024];
-	string line;
 	while (!feof(fenv))
 	{
-		line.clear();
-		while (!feof(fenv) && (line.size() == 0 || (line[line.size()-1] != '\n' && line[line.size()-1] != '\r')))
-			if (fgets(buffer, 1023, fenv) > 0)
-				line += string(buffer);
+		string line = getline(fenv);
 		
 		if (line.size() > 0)
 			add_pr(line);
@@ -243,17 +261,12 @@ void production_rule_set::load_prs(string filename)
 
 void production_rule_set::load_script(string filename, string mangle)
 {
-	vector<int> initialized;
+	vector<pr_index> initialized;
 	FILE *fscr = fopen(filename.c_str(), "r");
-	char buffer[256];
-	string line;
 	int delay = 0;
 	while (!feof(fscr))
 	{
-		line.clear();
-		while (!feof(fscr) && (line.size() == 0 || (line[line.size()-1] != '\n' && line[line.size()-1] != '\r')))
-			if (fgets(buffer, 1023, fscr) > 0)
-				line += string(buffer);
+		string line = getline(fscr);
 		
 		if (line.size() > 0)
 		{
@@ -295,7 +308,7 @@ void production_rule_set::load_script(string filename, string mangle)
 				char vname[256];
 				if (sscanf(line.c_str(), "watch %s", vname) == 1)
 				{
-					string name = this->name(set(to_string(vname)));
+					string name = set(to_string(vname))->name;
 					command = "$prsim_watch(\"" + name + "\");";
 				}
 			}
@@ -305,17 +318,27 @@ void production_rule_set::load_script(string filename, string mangle)
 				char vname[256];
 				if (sscanf(line.c_str(), "set %s %c", vname, &v) == 2)
 				{
-					int id = set(to_string(vname));
-					string name = this->name(id);
-					set_scripted(name);
+					pr_index id = set_scripted(to_string(vname));
+					string name = mangle_name(id->name, mangle);
 					
 					if (find(initialized.begin(), initialized.end(), id) != initialized.end())
-						command = "" + mangle_name(name, mangle) + " = " + to_string(v) + ";";
+						command = "" + name + " = " + to_string(v) + ";";
 					else
 					{
-						init += "\t\t" + mangle_name(name, mangle) + " = " + to_string(v) + ";\n";
+						init += "\t\t" + name + " = " + to_string(v) + ";\n";
 						initialized.push_back(id);
 					}
+				}
+			}
+			else if (strncmp(line.c_str(), "assert", 3) == 0)
+			{
+				char v;
+				char vname[256];
+				if (sscanf(line.c_str(), "assert %s %c", vname, &v) == 2)
+				{
+					pr_index id = set_asserted(to_string(vname));
+					string name = mangle_name(id->name, mangle);
+					command = "if (" + name + " != " + to_string(v) + ") $display(\"assertion failed " + name + " == " + to_string(v) + "\");";
 				}
 			}
 			else if (strncmp(line.c_str(), "advance", 7) == 0)
@@ -357,33 +380,57 @@ void production_rule_set::load_script(string filename, string mangle)
 	fclose(fscr);	
 }
 
+void production_rule_set::preview_script(string filename)
+{
+	FILE *fscr = fopen(filename.c_str(), "r");
+	while (!feof(fscr))
+	{
+		string line = getline(fscr);
+		
+		if (line.size() > 0 && strncmp(line.c_str(), "set", 3) == 0)
+		{
+			char v;
+			char vname[256];
+			if (sscanf(line.c_str(), "set %s %c", vname, &v) == 2)
+				set_scripted(to_string(vname));
+		}
+		else if (line.size() > 0 && strncmp(line.c_str(), "assert", 3) == 0)
+		{
+			char v;
+			char vname[256];
+			if (sscanf(line.c_str(), "assert %s %c", vname, &v) == 2)
+				set_asserted(to_string(vname));
+		}
+	}
+
+	fclose(fscr);	
+}
+
 void production_rule_set::write_dbase(string filename)
 {
 	FILE *fdbase = fopen(filename.c_str(), "w");
 	fprintf(fdbase, "%s\n", join(filter, " ").c_str());
 
-	for (int i = 0; i < variables.size(); i++)
+	for (pr_index i = variables.begin(); i != variables.end(); i++)
 	{
-		fprintf(fdbase, "%d%d%d", variables[i].read, variables[i].written, variables[i].aliased);
-		for (int j = 0; j < (int)variables[i].names.size(); j++)
-			fprintf(fdbase, " %s", variables[i].names[j].c_str());
+		fprintf(fdbase, "%d%d%d%d%d", i->read, i->written, i->scripted, i->asserted, i->aliased);
+		for (int j = 0; j < i->names.capacity; j++)
+			for (vector<string>::iterator k = i->names.buckets[j].begin(); k != i->names.buckets[j].end(); k++)
+				fprintf(fdbase, " %s", k->c_str());
 		fprintf(fdbase, "\n");
 	}
+	fflush(fdbase);
 	fclose(fdbase);
 }
 
 void production_rule_set::load_dbase(string filename)
 {
 	FILE *fdbase = fopen(filename.c_str(), "r");
-	char buffer[1024];
-	string line;
 	bool first = true;
 	while (!feof(fdbase))
 	{
-		line.clear();
-		while (!feof(fdbase) && (line.size() == 0 || (line[line.size()-1] != '\n' && line[line.size()-1] != '\r')))
-			if (fgets(buffer, 1023, fdbase) > 0)
-				line += string(buffer);
+		string line = getline(fdbase);
+		printf("%s", line.c_str());
 		
 		if (line.size() > 0)
 		{
@@ -394,18 +441,68 @@ void production_rule_set::load_dbase(string filename)
 			}
 			else
 			{
-				variables.push_back(pr_variable());
+				pr_index var = new_var();
 		
 				if (line[0] == '1')
-					variables.back().read = true;
+					var->read = true;
 				if (line[1] == '1')
-					variables.back().written = true;
+					var->written = true;
 				if (line[2] == '1')
-					variables.back().aliased = true;
+					var->scripted = true;
+				if (line[3] == '1')
+					var->asserted = true;
+				if (line[4] == '1')
+					var->aliased = true;
 	
-				variables.back().names = split(line.substr(4), " \n\t");
+				vector<string> names = split(line.substr(6), " \n\t");
+				var->add_names(names, filter_names(names));
+				for (int i = 0; i < (int)names.size(); i++)
+				{
+					printf("adding %s\n", names[i].c_str());
+					variable_map.insert(names[i], var);
+				}
 			}
 		}
 	}
+
 	fclose(fdbase);
 }
+
+pr_index production_rule_set::new_var()
+{
+	variables.push_back(pr_variable());
+	pr_index result = variables.end();
+	result--;	
+	return result;
+}
+
+void production_rule_set::delete_var(pr_index index)
+{
+	for (int i = 0; i < index->names.capacity; i++)
+		for (int j = 0; j < (int)index->names.buckets[i].size(); j++)
+			variable_map.erase(index->names.buckets[i][j]);
+
+	variables.erase(index);
+}
+
+void production_rule_set::replace_var(pr_index from, pr_index to)
+{
+	for (int i = 0; i < from->names.capacity; i++)
+		for (int j = 0; j < (int)from->names.buckets[i].size(); j++)
+		{
+			map<string, pr_index>::iterator temp;
+			if (variable_map.find(from->names.buckets[i][j], &temp))
+				temp->second = to;
+		}
+
+	variables.erase(from);
+}
+
+bool production_rule_set::has_prs()
+{
+	for (pr_index i = variables.begin(); i != variables.end(); i++)
+		if (i->read || i->written)
+			return true;
+	return false;
+}
+

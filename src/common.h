@@ -47,4 +47,4 @@ string find_config(string config);
 string mangle_name(string name, string mangle);
 string demangle_name(string name, string mangle);
 string trim(string name, string discard);
-
+string getline(FILE *fptr);

@@ -52,17 +52,15 @@ vector<string> split(string str, string delim)
 	int j = str.find_first_of(delim);
 	while (j != -1)
 	{
-		result.push_back(str.substr(i+1, j-i-1));
-		if (result.back().size() == 0)
-			result.pop_back();
+		if (j-i-1 > 0)
+			result.push_back(str.substr(i+1, j-i-1));
 
 		i = j;
 		j = str.find_first_of(delim, i+1);
 	}
 
-	result.push_back(str.substr(i+1));
-	if (result.back().size() == 0)
-		result.pop_back();
+	if (i+1 < str.size())
+		result.push_back(str.substr(i+1));
 
 	return result;
 }
@@ -165,4 +163,12 @@ string trim(string name, string discard)
 	return name.substr(left, right-left+1);
 }
 
-
+string getline(FILE *fptr)
+{
+	string result;
+	char buffer[1024];
+	bool done = false;
+	while ((result.size() == 0 || (result[result.size()-1] != '\r' && result[result.size()-1] != '\n')) && fgets(buffer, 1023, fptr) != NULL)
+		result += string(buffer);
+	return result;
+}
