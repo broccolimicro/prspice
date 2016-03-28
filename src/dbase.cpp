@@ -457,10 +457,7 @@ void production_rule_set::load_dbase(string filename)
 				vector<string> names = split(line.substr(6), " \n\t");
 				var->add_names(names, filter_names(names));
 				for (int i = 0; i < (int)names.size(); i++)
-				{
-					printf("adding %s\n", names[i].c_str());
 					variable_map.insert(names[i], var);
-				}
 			}
 		}
 	}
