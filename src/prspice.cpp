@@ -1,6 +1,18 @@
 #include "common.h"
 #include "dbase.h"
 
+vector<pair<string, string> > parse_sources(string sources)
+{
+	vector<pair<string, string> > result;
+	vector<string> drivers = split(sources, ";");
+	for (int i = 0; i < (int)drivers.size(); i++)
+	{
+		vector<string> eq = split(drivers[i], "=");
+		result.push_back(pair<string, string>(trim(eq[0], " \t\n\r"), trim(eq[1], " \t\n\r")));
+	}
+	return result;
+}
+
 int main(int argc, char **argv)
 {
 	bool debug = true;
@@ -13,6 +25,7 @@ int main(int argc, char **argv)
 	string dir = "";
 	bool pack = false;
 	string netgen_flags = "";
+	string sources = "g.Vdd=1.0v;g.GND=0.0v";
 
 	for (int i = 1; i < argc; i++)
 	{
@@ -24,6 +37,8 @@ int main(int argc, char **argv)
 			instance = argv[i];
 		else if (string(argv[i]) == "-o" && ++i < argc)
 			dir = argv[i];
+		else if (string(argv[i]) == "-s" && ++i < argc)
+			sources = argv[i];
 		else if (string(argv[i]) == "-pack")
 			pack = true;
 		else if (string(argv[i]) == "-B")
@@ -64,7 +79,7 @@ int main(int argc, char **argv)
 	mangle = mangle.substr(1, mangle.find_last_of("\"")-1);
 
 	// Generate the production rules for the environment
-	string flat = "cflat -DLAYOUT=false " + test_file + " | prdbase \"" + script_file + "\" \"" + dir + "/dbase.dat\" \"" + instance + "\"";
+	string flat = "cflat -DLAYOUT=false -DPRSIM=false " + test_file + " | prdbase \"" + script_file + "\" \"" + dir + "/dbase.dat\" \"" + instance + "\"";
 	if (pack)
 		flat += " | prspack " + dir + "/names";
 	flat += " > " + dir + "/env.prs";
@@ -79,21 +94,46 @@ int main(int argc, char **argv)
 	vector<string> subckt = split(exec("grep \".subckt " + spice_process + "\" " + dir + "/dut.spi", debug), " \t\n\r");
 	vector<string> wrapper_subckt;
 
+	vector<pair<string, string> > drivers = parse_sources(sources);
+	for (int i = 0; i < (int)drivers.size(); i++)
+		drivers[i].first = mangle_name(drivers[i].first, mangle);
+
+	FILE *ftest = fopen((dir + "/test.spi").c_str(), "a");
+	if (ftest == NULL)
+	{
+		printf("unable to open test file\n");
+		exit(1);
+	}
+
+	fprintf(ftest, "\n");
+	fprintf(ftest, ".global");
+	for (int i = 0; i < (int)drivers.size(); i++)
+		fprintf(ftest, " %s", drivers[i].first.c_str());
+	fprintf(ftest, "\n");
+	for (int i = 0; i < (int)drivers.size(); i++)
+		fprintf(ftest, "vpwr%d %s 0 dc %s\n", i, drivers[i].first.c_str(), drivers[i].second.c_str());
+	fprintf(ftest, "\n");
+	fprintf(ftest, ".inc %s/lib/spice/%s.spi\n", getenv("VLSI_INSTALL"), config.c_str());
+	fprintf(ftest, ".inc dut.spi\n\n");
+	fprintf(ftest, ".print v(*)\n");
+	for (int i = 0; i < (int)drivers.size(); i++)
+		fprintf(ftest, ".print i(%s)\n", drivers[i].first.c_str());
+	fprintf(ftest, ".end\n");
+
 	for (int i = 2; i < (int)subckt.size(); i++)
-		if (tolower(subckt[i]).find("vdd") == -1 && tolower(subckt[i]).find("gnd") == -1)
+	{
+		bool found = false;
+		for (int j = 0; j < (int)drivers.size() && !found; j++)
+			found = (drivers[j].first == subckt[i]);
+		
+		if (!found)	
 			wrapper_subckt.push_back(subckt[i]);
-	
+	}
+
 	string wrapper = "\n.subckt wrapper " + join(wrapper_subckt, " ") + "\n";
 	wrapper += "x" + instance;
 	for (int i = 2; i < (int)subckt.size(); i++)
-	{
-		if (tolower(subckt[i]).find("vdd") != -1)
-			wrapper += " vdd";
-		else if (tolower(subckt[i]).find("gnd") != -1)
-			wrapper += " gnd";
-		else
-			wrapper += " " + subckt[i];
-	}
+		wrapper += " " + subckt[i];
 	wrapper += " " + spice_process + "\n.ends\n";
 
 	// add it to the spice netlist for the device under test

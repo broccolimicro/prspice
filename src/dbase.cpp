@@ -430,7 +430,6 @@ void production_rule_set::load_dbase(string filename)
 	while (!feof(fdbase))
 	{
 		string line = getline(fdbase);
-		printf("%s", line.c_str());
 		
 		if (line.size() > 0)
 		{
