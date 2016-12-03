@@ -86,31 +86,37 @@ string tolower(string str)
 
 bool file_exists(string name)
 {
-    if (FILE *file = fopen(name.c_str(), "r"))
+	if (FILE *file = fopen(name.c_str(), "r"))
 	{
-        fclose(file);
-        return true;
-    }
+		fclose(file);
+		return true;
+	}
 	else
-        return false;
+		return false;
 }
 
 string find_config(string config)
 {
 	string config_path = config;
-    if (!file_exists(config_path) && config_path[0] != '/')
-    {
-        config_path = string(getenv("CAD_HOME")) + "/lib/netgen/" + config_path;
+	if (!file_exists(config_path) && config_path[0] != '/')
+	{
+		char *cad = getenv("CAD_HOME");
+		if (cad != NULL)
+		{
+			config_path = string(cad) + "/lib/netgen/" + config_path;
 
-        if (!file_exists(config_path) && config_path.find(".conf") == -1)
-            config_path += ".conf";
-    }
+			if (!file_exists(config_path) && config_path.find(".conf") == -1)
+				config_path += ".conf";
+		}
+		else
+			printf("Please set the CAD_HOME environment variable.\n");
+	}
 
-    if (!file_exists(config_path))
-    {
-        printf("Netgen config file not found\n");
-        exit(1);
-    }
+	if (!file_exists(config_path))
+	{
+		printf("Netgen config file not found\n");
+		exit(1);
+	}
 
 	return config_path;
 }

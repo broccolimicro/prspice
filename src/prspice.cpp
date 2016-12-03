@@ -73,9 +73,10 @@ int main(int argc, char **argv)
 	exec("cp " + to_string(getenv("PRSPICE_INSTALL")) + "/* " + dir);
 
 	string config_path = find_config(config);
-	
+
 	// get the mangle string
-	string mangle = exec("grep mangle_chars \"" + config_path + "\" | grep -o \"\\\".*\\\"\"", debug);
+	string mangle_str = "grep mangle_chars \"" + config_path + "\" | grep -o \"\\\".*\\\"\"";
+	string mangle = exec(mangle_str, debug);
 	mangle = mangle.substr(1, mangle.find_last_of("\"")-1);
 
 	// Generate the production rules for the environment
@@ -86,7 +87,8 @@ int main(int argc, char **argv)
 	exec(flat, debug);
 
 	// Get the spice netlist for the device under test
-	exec("netgen " + netgen_flags + " -p \"" + process + "\" -C " + config + " " + test_file + " > " + dir + "/dut.spi", debug);
+	string spice_str = "netgen " + netgen_flags + " -p \"" + process + "\" -C " + config + " " + test_file + " > " + dir + "/dut.spi";
+	exec(spice_str, debug);
 	
 	// Generate a wrapper spice subcircuit to connect up power and ground
 	string spice_process = act_to_spice(process);
