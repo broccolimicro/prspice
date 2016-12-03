@@ -117,7 +117,7 @@ int main(int argc, char **argv)
 	fprintf(ftest, ".inc dut.spi\n\n");
 	fprintf(ftest, ".print v(*)\n");
 	for (int i = 0; i < (int)drivers.size(); i++)
-		fprintf(ftest, ".print i(%s)\n", drivers[i].first.c_str());
+		fprintf(ftest, ".print in(%s)\n", drivers[i].first.c_str());
 	fprintf(ftest, ".end\n");
 
 	for (int i = 2; i < (int)subckt.size(); i++)
@@ -253,7 +253,7 @@ int main(int argc, char **argv)
 		// If the signal is driven in the prsim script, then its a register. Otherwise, its a wire
 		string name = i->name;
 		string mname = mangle_name(name, mangle);
-		if ((find(vlist.begin(), vlist.end(), i) != vlist.end() && i->written) || (!i->written && !i->read && (i->scripted || i->asserted)))
+		if (!i->written && !i->read && (i->scripted || i->asserted))
 		{
 			verilog += "\talways @(posedge " + mname + ") begin\n";
 			verilog += "\t\t$display(\"\t%t " + name + " : 1\", $realtime);\n";

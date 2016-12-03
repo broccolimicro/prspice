@@ -266,53 +266,12 @@ void production_rule_set::load_script(string filename, string mangle)
 	int delay = 0;
 	while (!feof(fscr))
 	{
-		string line = getline(fscr);
+		string line = trim(getline(fscr), "\n\r\t ");
 		
 		if (line.size() > 0)
 		{
 			string command = "";
-			if (strncmp(line.c_str(), "mode run", 8) == 0)
-				command = "$prsim_resetmode(0);";
-			else if (strncmp(line.c_str(), "mode reset", 10) == 0)
-				command = "$prsim_resetmode(1);";
-			else if (strncmp(line.c_str(), "norandom", 8) == 0)
-				command = "$prsim_mkrandom(0);";
-			else if (strncmp(line.c_str(), "random", 6) == 0)
-			{
-				command = "$prsim_mkrandom(1);";
-				int m0 = -1, m1 = -1;
-				if (sscanf(line.c_str(), "random %d %d", &m0, &m1) == 2)
-					command += "\n\t\t$prsim_random_setrange(" + to_string(m0) + ", " + to_string(m1) + ");";
-			}
-			else if (strncmp(line.c_str(), "dumptc", 6) == 0)
-			{
-				char dumptc_file[256];
-				if (sscanf(line.c_str(), "dumptc %s", dumptc_file) == 1)
-					command = "$prsim_dump_tc(\"" + string(dumptc_file) + "\");";
-			}
-			else if (strncmp(line.c_str(), "status", 6) == 0)
-			{
-				char v;
-				if (sscanf(line.c_str(), "status %c", &v) == 1)
-				{
-					if (v == 'X')
-						command = "$prsim_status(2);";
-					else
-						command = "$prsim_status(" + to_string(v) + ");";
-				}
-			}
-			else if (strncmp(line.c_str(), "watchall", 8) == 0)
-				command = "$prsim_watchall();";
-			else if (strncmp(line.c_str(), "watch", 5) == 0)
-			{
-				char vname[256];
-				if (sscanf(line.c_str(), "watch %s", vname) == 1)
-				{
-					string name = set(to_string(vname))->name;
-					command = "$prsim_watch(\"" + name + "\");";
-				}
-			}
-			else if (strncmp(line.c_str(), "set", 3) == 0)
+			if (strncmp(line.c_str(), "set", 3) == 0)
 			{
 				char v;
 				char vname[256];
@@ -355,6 +314,8 @@ void production_rule_set::load_script(string filename, string mangle)
 			}
 			else if (strncmp(line.c_str(), "cycle", 5) == 0)
 				delay += 20;
+			else
+				command = "$prsim_cmd(\"" + line + "\");";
 
 			if (command != "")
 			{
@@ -380,26 +341,107 @@ void production_rule_set::load_script(string filename, string mangle)
 	fclose(fscr);	
 }
 
+struct channel
+{
+	channel() {}
+	channel(string name, string type, int N)
+	{
+		this->name = name;
+		this->type = type;
+		this->N = N;
+	}
+	~channel() {}
+
+	string name;
+	string type;
+	int N;
+};
+
 void production_rule_set::preview_script(string filename)
 {
 	FILE *fscr = fopen(filename.c_str(), "r");
+	vector<channel> channels;
 	while (!feof(fscr))
 	{
 		string line = getline(fscr);
 		
-		if (line.size() > 0 && strncmp(line.c_str(), "set", 3) == 0)
+		if (line.size() > 0)
 		{
-			char v;
-			char vname[256];
-			if (sscanf(line.c_str(), "set %s %c", vname, &v) == 2)
-				set_scripted(to_string(vname));
-		}
-		else if (line.size() > 0 && strncmp(line.c_str(), "assert", 3) == 0)
-		{
-			char v;
-			char vname[256];
-			if (sscanf(line.c_str(), "assert %s %c", vname, &v) == 2)
-				set_asserted(to_string(vname));
+			if (strncmp(line.c_str(), "set", 3) == 0)
+			{
+				char v;
+				char vname[256];
+				if (sscanf(line.c_str(), "set %s %c", vname, &v) == 2)
+					set_scripted(to_string(vname));
+			}
+			else if (strncmp(line.c_str(), "assert", 3) == 0)
+			{
+				char v;
+				char vname[256];
+				if (sscanf(line.c_str(), "assert %s %c", vname, &v) == 2)
+					set_asserted(to_string(vname));
+			}
+			else if (strncmp(line.c_str(), "channel", 7) == 0)
+			{
+				char vtype[256];
+				int vN = 0;
+				char vname[256];
+				if (sscanf(line.c_str(), "channel %s %d %s", vtype, &vN, vname) == 3)
+				{
+					set_read("Reset");
+					if (strncmp(vtype, "e1ofN", 5) == 0)
+					{
+						for (int i = 0; i < vN; i++)
+							set_read(to_string(vname) + ".d[" + to_string(i) + "]");
+						set_read(to_string(vname) + ".e");
+					}
+					else if (strncmp(vtype, "eMx1of2", 7) == 0 || strncmp(vtype, "eDx1of2", 7) == 0)
+					{
+						for (int i = 0; i < vN; i++)
+							for (int j = 0; j < 2; j++)
+								set_read(to_string(vname) + ".b[" + to_string(i) + "].d[" + to_string(j) + "]");
+						set_read(to_string(vname) + ".e");
+					}
+					else if (strncmp(vtype, "eMx1of4", 7) == 0)
+					{
+						for (int i = 0; i < vN; i++)
+							for (int j = 0; j < 4; j++)
+								set_read(to_string(vname) + ".b[" + to_string(i) + "].d[" + to_string(j) + "]");
+						set_read(to_string(vname) + ".e");	
+					}
+					channels.push_back(channel(vname, vtype, vN));
+				}
+			}
+			else if (strncmp(line.c_str(), "injectfile", 10) == 0)
+			{
+				char vname[256];
+				char vfile[256];
+				if (sscanf(line.c_str(), "injectfile %s %s", vname, vfile) == 2)
+				{
+					set_read("Reset");
+					for (int c = 0; c < (int)channels.size(); c++)
+						if (channels[c].name == to_string(vname))
+						{
+							if (channels[c].type == "e1ofN")
+							{
+								for (int i = 0; i < channels[c].N; i++)
+									set_written(channels[c].name + ".d[" + to_string(i) + "]");
+							}
+							else if (channels[c].type == "eMx1of2" || channels[c].type == "eDx1of2")
+							{
+								for (int i = 0; i < channels[c].N; i++)
+									for (int j = 0; j < 2; j++)
+										set_written(channels[c].name + ".b[" + to_string(i) + "].d[" + to_string(j) + "]");
+							}
+							else if (channels[c].type == "eMx1of4")
+							{
+								for (int i = 0; i < channels[c].N; i++)
+									for (int j = 0; j < 4; j++)
+										set_written(channels[c].name + ".b[" + to_string(i) + "].d[" + to_string(j) + "]");
+							}
+						}
+				}
+			}
 		}
 	}
 
