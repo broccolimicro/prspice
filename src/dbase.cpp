@@ -341,20 +341,46 @@ void production_rule_set::load_script(string filename, string mangle)
 	fclose(fscr);	
 }
 
+struct channel_data
+{
+	channel_data()
+	{
+		num_bundles = 0;
+		num_rails = 0;
+	}
+
+	channel_data(string bundle_name, int num_bundles, string rail_name, int num_rails)
+	{
+		this->bundle_name = bundle_name;
+		this->num_bundles = num_bundles;
+		this->rail_name = rail_name;
+		this->num_rails = num_rails;
+	}
+
+	~channel_data()
+	{
+	}
+
+	string bundle_name;
+	string rail_name;
+	int num_bundles;
+	int num_rails;
+};
+
 struct channel
 {
 	channel() {}
-	channel(string name, string type, int N)
+	channel(string name, int num_req, int num_ack)
 	{
 		this->name = name;
-		this->type = type;
-		this->N = N;
+		this->req.resize(num_req);
+		this->ack.resize(num_ack);
 	}
 	~channel() {}
 
 	string name;
-	string type;
-	int N;
+	vector<channel_data> req;
+	vector<channel_data> ack;
 };
 
 void production_rule_set::preview_script(string filename)
@@ -383,63 +409,157 @@ void production_rule_set::preview_script(string filename)
 			}
 			else if (strncmp(line.c_str(), "channel", 7) == 0)
 			{
-				char vtype[256];
-				int vN = 0;
-				char vname[256];
-				if (sscanf(line.c_str(), "channel %s %d %s", vtype, &vN, vname) == 3)
+				char vname[256] = "";
+				char vproto[256] = "";
+				char vreq[256] = "";
+				char vack[256] = "";
+				if (sscanf(line.c_str(), "channel %s %s %s %s", vname, vproto, vreq, vack) >= 2)
 				{
 					set_read("Reset");
-					if (strncmp(vtype, "e1ofN", 5) == 0)
-					{
-						for (int i = 0; i < vN; i++)
-							set_read(to_string(vname) + ".d[" + to_string(i) + "]");
-						set_read(to_string(vname) + ".e");
+					int num_req = 0;
+					for (char *cptr = vreq; cptr && *cptr; cptr++) {
+						if (cptr == vreq || *(cptr-1) == '&' || *(cptr-1) == '|') {
+							int v = atoi(cptr);
+							if (v >= num_req)
+								num_req = v+1;
+						}
 					}
-					else if (strncmp(vtype, "eMx1of2", 7) == 0 || strncmp(vtype, "eDx1of2", 7) == 0)
-					{
-						for (int i = 0; i < vN; i++)
-							for (int j = 0; j < 2; j++)
-								set_read(to_string(vname) + ".b[" + to_string(i) + "].d[" + to_string(j) + "]");
-						set_read(to_string(vname) + ".e");
+
+					int num_ack = 0;
+					for (char *cptr = vack; cptr && *cptr; cptr++) {
+						if (cptr == vack || *(cptr-1) == '&' || *(cptr-1) == '|') {
+							int v = atoi(cptr);
+							if (v >= num_ack)
+								num_ack = v+1;
+						}
 					}
-					else if (strncmp(vtype, "eMx1of4", 7) == 0)
-					{
-						for (int i = 0; i < vN; i++)
-							for (int j = 0; j < 4; j++)
-								set_read(to_string(vname) + ".b[" + to_string(i) + "].d[" + to_string(j) + "]");
-						set_read(to_string(vname) + ".e");	
-					}
-					channels.push_back(channel(vname, vtype, vN));
+
+					channels.push_back(channel(vname, num_req, num_ack));
 				}
 			}
-			else if (strncmp(line.c_str(), "injectfile", 10) == 0)
+			else if (strncmp(line.c_str(), "request", 7) == 0 || strncmp(line.c_str(), "enable", 6) == 0 || strncmp(line.c_str(), "acknowledge", 11) == 0)
 			{
+				char vtype[256];
 				char vname[256];
-				char vfile[256];
-				if (sscanf(line.c_str(), "injectfile %s %s", vname, vfile) == 2)
+				int vindex = 0;
+				char vdef[256];
+				if (sscanf(line.c_str(), "%s %s %d %s", vtype, vname, &vindex, vdef) == 4)
 				{
 					set_read("Reset");
-					for (int c = 0; c < (int)channels.size(); c++)
-						if (channels[c].name == to_string(vname))
+					
+					int idx = -1;
+					for (int i = 0; i < channels.size() && idx < 0; i++)
+						if (channels[i].name == to_string(vname))
+							idx = i;
+
+					if (idx >= 0)
+					{
+						char sRail[32], R[32];
+						char sBundle[32], B[32];
+						int numBundles = 0, b;
+						int numRails = 0, r;
+						if (sscanf(vdef, "%[^;];%[^-;]-;%dx1of%d", B, R, &b, &r) == 4)
 						{
-							if (channels[c].type == "e1ofN")
-							{
-								for (int i = 0; i < channels[c].N; i++)
-									set_written(channels[c].name + ".d[" + to_string(i) + "]");
-							}
-							else if (channels[c].type == "eMx1of2" || channels[c].type == "eDx1of2")
-							{
-								for (int i = 0; i < channels[c].N; i++)
-									for (int j = 0; j < 2; j++)
-										set_written(channels[c].name + ".b[" + to_string(i) + "].d[" + to_string(j) + "]");
-							}
-							else if (channels[c].type == "eMx1of4")
-							{
-								for (int i = 0; i < channels[c].N; i++)
-									for (int j = 0; j < 4; j++)
-										set_written(channels[c].name + ".b[" + to_string(i) + "].d[" + to_string(j) + "]");
+							strcpy(sBundle, B);
+							strcpy(sRail, R);
+							numBundles = b;
+							numRails = r;
+						}
+						else if (sscanf(vdef, "%[^;];%[^-;];%dx1of%d", B, R, &b, &r) == 4)
+						{
+							strcpy(sBundle, B);
+							strcpy(sRail, R);
+							numBundles = b;
+							numRails = r;
+						}
+						else if (sscanf(vdef, "%dx1of%d", &b, &r) == 2)
+						{
+							numBundles = b;
+							numRails = r;
+						}
+						else if (sscanf(vdef, "%[^-;]-;1of%d", R, &r) == 2)
+						{
+							strcpy(sRail, R);
+							numRails = r;
+						}
+						else if (sscanf(vdef, "%[^-;];1of%d", R, &r) == 2)
+						{
+							strcpy(sRail, R);
+							numRails = r;
+						}
+						else if (sscanf(vdef, "1of%d", &r) == 1)
+							numRails = r;
+
+						char nodeName[256];
+	
+						for (int i = 0; i < numBundles; i++) {
+							for (int j = 0; j < numRails; j++) {
+								if (numBundles > 0 && numRails > 0)
+									sprintf(nodeName, "%s.%s[%d].%s[%d]", vname, sBundle, i, sRail, j);
+								else if (numBundles == 0 && numRails > 0)
+									sprintf(nodeName, "%s.%s[%d]", vname, sRail, j);
+								else if (numBundles > 0 && numRails == 0)
+									sprintf(nodeName, "%s.%s[%d].%s", vname, sBundle, i, sRail);
+								else if (numBundles == 0 && numRails == 0)
+									sprintf(nodeName, "%s.%s", vname, sRail);
+								
+								set_read(nodeName);
 							}
 						}
+
+						if (strncmp(vtype, "request", 7) == 0)
+							channels[idx].req[vindex] = channel_data(sBundle, numBundles, sRail, numRails);
+						else
+							channels[idx].ack[vindex] = channel_data(sBundle, numBundles, sRail, numRails);
+					}
+
+				}
+			}
+			else if (strncmp(line.c_str(), "inject", 6) == 0)
+			{
+				char vname[256];
+				char vtype[256];
+				if (sscanf(line.c_str(), "inject %s %s", vname, vtype) == 2)
+				{
+					set_read("Reset");
+
+					int idx = -1;
+					for (int i = 0; i < channels.size() && idx < 0; i++)
+						if (channels[i].name == to_string(vname))
+							idx = i;
+
+					if (idx >= 0)
+					{
+						vector<channel_data> *dat = NULL;
+						if (strncmp(vtype, "request", 7) == 0)
+							dat = &channels[idx].req;
+						else
+							dat = &channels[idx].ack;
+
+						for (int c = 0; c < dat->size(); c++)
+						{
+							char nodeName[256];
+							int numBundles = (*dat)[c].num_bundles;
+							int numRails = (*dat)[c].num_rails;
+							const char *sBundle = (*dat)[c].bundle_name.c_str();
+							const char *sRail = (*dat)[c].rail_name.c_str();
+							
+							for (int i = 0; i < numBundles; i++) {
+								for (int j = 0; j < numRails; j++) {
+									if (numBundles > 0 && numRails > 0)
+										sprintf(nodeName, "%s.%s[%d].%s[%d]", vname, sBundle, i, sRail, j);
+									else if (numBundles == 0 && numRails > 0)
+										sprintf(nodeName, "%s.%s[%d]", vname, sRail, j);
+									else if (numBundles > 0 && numRails == 0)
+										sprintf(nodeName, "%s.%s[%d].%s", vname, sBundle, i, sRail);
+									else if (numBundles == 0 && numRails == 0)
+										sprintf(nodeName, "%s.%s", vname, sRail);
+									
+									set_written(nodeName);
+								}
+							}
+						}
+					}
 				}
 			}
 		}
