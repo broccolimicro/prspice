@@ -347,6 +347,7 @@ struct channel_data
 	{
 		num_bundles = 0;
 		num_rails = 0;
+		isSet = false;
 	}
 
 	channel_data(string bundle_name, int num_bundles, string rail_name, int num_rails)
@@ -355,6 +356,7 @@ struct channel_data
 		this->num_bundles = num_bundles;
 		this->rail_name = rail_name;
 		this->num_rails = num_rails;
+		isSet = true;
 	}
 
 	~channel_data()
@@ -365,20 +367,23 @@ struct channel_data
 	string rail_name;
 	int num_bundles;
 	int num_rails;
+	bool isSet;
 };
 
 struct channel
 {
 	channel() {}
-	channel(string name, int num_req, int num_ack)
+	channel(string name, char protocol, int num_req, int num_ack)
 	{
 		this->name = name;
+		this->protocol = protocol;
 		this->req.resize(num_req);
 		this->ack.resize(num_ack);
 	}
 	~channel() {}
 
 	string name;
+	char protocol;
 	vector<channel_data> req;
 	vector<channel_data> ack;
 };
@@ -425,6 +430,9 @@ void production_rule_set::preview_script(string filename)
 						}
 					}
 
+					if (num_req == 0)
+						num_req = 1;
+
 					int num_ack = 0;
 					for (char *cptr = vack; cptr && *cptr; cptr++) {
 						if (cptr == vack || *(cptr-1) == '&' || *(cptr-1) == '|') {
@@ -434,7 +442,11 @@ void production_rule_set::preview_script(string filename)
 						}
 					}
 
-					channels.push_back(channel(vname, num_req, num_ack));
+					if (num_ack == 0)
+						num_ack = 1;
+
+
+					channels.push_back(channel(vname, vproto[0], num_req, num_ack));
 				}
 			}
 			else if (strncmp(line.c_str(), "request", 7) == 0 || strncmp(line.c_str(), "enable", 6) == 0 || strncmp(line.c_str(), "acknowledge", 11) == 0)
@@ -447,6 +459,8 @@ void production_rule_set::preview_script(string filename)
 				{
 					set_read("Reset");
 					
+					bool isRequest = (strncmp(vtype, "request", 7) == 0);
+
 					int idx = -1;
 					for (int i = 0; i < channels.size() && idx < 0; i++)
 						if (channels[i].name == to_string(vname))
@@ -454,8 +468,8 @@ void production_rule_set::preview_script(string filename)
 
 					if (idx >= 0)
 					{
-						char sRail[32], R[32];
-						char sBundle[32], B[32];
+						char sBundle[32] = "r", B[32];
+						char sRail[32] = "d", R[32];
 						int numBundles = 0, b;
 						int numRails = 0, r;
 						if (sscanf(vdef, "%[^;];%[^-;]-;%dx1of%d", B, R, &b, &r) == 4)
@@ -476,6 +490,8 @@ void production_rule_set::preview_script(string filename)
 						{
 							numBundles = b;
 							numRails = r;
+							if (!isRequest)
+								sBundle[0] = channels[idx].protocol;
 						}
 						else if (sscanf(vdef, "%[^-;]-;1of%d", R, &r) == 2)
 						{
@@ -488,12 +504,16 @@ void production_rule_set::preview_script(string filename)
 							numRails = r;
 						}
 						else if (sscanf(vdef, "1of%d", &r) == 1)
+						{
 							numRails = r;
-
+							if (!isRequest)
+								sBundle[0] = channels[idx].protocol;
+						}
+	
 						char nodeName[256];
 	
-						for (int i = 0; i < numBundles; i++) {
-							for (int j = 0; j < numRails; j++) {
+						for (int i = 0; i < max(1, numBundles); i++) {
+							for (int j = 0; j < max(1, numRails); j++) {
 								if (numBundles > 0 && numRails > 0)
 									sprintf(nodeName, "%s.%s[%d].%s[%d]", vname, sBundle, i, sRail, j);
 								else if (numBundles == 0 && numRails > 0)
@@ -507,10 +527,16 @@ void production_rule_set::preview_script(string filename)
 							}
 						}
 
-						if (strncmp(vtype, "request", 7) == 0)
+
+						if (isRequest)
+						{
 							channels[idx].req[vindex] = channel_data(sBundle, numBundles, sRail, numRails);
+						}
 						else
+						{
 							channels[idx].ack[vindex] = channel_data(sBundle, numBundles, sRail, numRails);
+						}
+
 					}
 
 				}
@@ -528,24 +554,47 @@ void production_rule_set::preview_script(string filename)
 						if (channels[i].name == to_string(vname))
 							idx = i;
 
+
 					if (idx >= 0)
 					{
 						vector<channel_data> *dat = NULL;
 						if (strncmp(vtype, "request", 7) == 0)
+						{
+							for (int c = 0; c < channels[idx].req.size(); c++)
+								if (!channels[idx].req[c].isSet)
+								{
+									channels[idx].req[c] = channel_data("r", 0, "d", 1);
+									char nodeName[256];
+									sprintf(nodeName, "%s.%s[0]", channels[idx].name.c_str(), channels[idx].req[c].rail_name.c_str());
+									set_read(nodeName);
+								}
 							dat = &channels[idx].req;
+						}
 						else
+						{
+							for (int c = 0; c < channels[idx].ack.size(); c++)
+								if (!channels[idx].ack[c].isSet)
+								{
+									channels[idx].ack[c] = channel_data(to_string(channels[idx].protocol), 0, to_string(channels[idx].protocol), 0);
+									char nodeName[256];
+									sprintf(nodeName, "%s.%s", channels[idx].name.c_str(), channels[idx].ack[c].rail_name.c_str());
+									set_read(nodeName);
+								}
+
 							dat = &channels[idx].ack;
+						}
 
 						for (int c = 0; c < dat->size(); c++)
 						{
+
 							char nodeName[256];
 							int numBundles = (*dat)[c].num_bundles;
 							int numRails = (*dat)[c].num_rails;
 							const char *sBundle = (*dat)[c].bundle_name.c_str();
 							const char *sRail = (*dat)[c].rail_name.c_str();
-							
-							for (int i = 0; i < numBundles; i++) {
-								for (int j = 0; j < numRails; j++) {
+														
+							for (int i = 0; i < max(1, numBundles); i++) {
+								for (int j = 0; j < max(1, numRails); j++) {
 									if (numBundles > 0 && numRails > 0)
 										sprintf(nodeName, "%s.%s[%d].%s[%d]", vname, sBundle, i, sRail, j);
 									else if (numBundles == 0 && numRails > 0)
@@ -563,6 +612,27 @@ void production_rule_set::preview_script(string filename)
 				}
 			}
 		}
+	}
+
+	for (int i = 0; i < channels.size(); i++)
+	{
+		for (int c = 0; c < channels[i].req.size(); c++)
+			if (!channels[i].req[c].isSet)
+			{
+				channels[i].req[c] = channel_data("r", 0, "d", 1);
+				char nodeName[256];
+				sprintf(nodeName, "%s.%s[0]", channels[i].name.c_str(), channels[i].req[c].rail_name.c_str());
+				set_read(nodeName);
+			}
+		
+		for (int c = 0; c < channels[i].ack.size(); c++)
+			if (!channels[i].ack[c].isSet)
+			{
+				channels[i].ack[c] = channel_data(to_string(channels[i].protocol), 0, to_string(channels[i].protocol), 0);
+				char nodeName[256];
+				sprintf(nodeName, "%s.%s", channels[i].name.c_str(), channels[i].ack[c].rail_name.c_str());
+				set_read(nodeName);
+			}
 	}
 
 	fclose(fscr);	
