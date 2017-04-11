@@ -545,7 +545,7 @@ void production_rule_set::parse_command(const char *line)
 	else if (strncmp(line, "set", 3) == 0)
 	{
 		if (sscanf(line, "set %s", vname) == 1)
-			set_scripted(to_string(vname));
+			set_written(to_string(vname));
 	}
 	else if (strncmp(line, "get", 3) == 0)
 	{
@@ -560,7 +560,7 @@ void production_rule_set::parse_command(const char *line)
 	else if (strncmp(line, "seu", 3) == 0)
 	{
 		if (sscanf(line, "seu %s", vname) == 1)
-			set_scripted(to_string(vname));
+			set_written(to_string(vname));
 	}
 	else if (strncmp(line, "uget", 4) == 0)
 	{
@@ -616,7 +616,7 @@ void production_rule_set::parse_command(const char *line)
 	else if (strncmp(line, "clock_source", 12) == 0)
 	{
 		if (sscanf(line, "clock_source %s", vname) == 1)
-			set_scripted(vname);
+			set_written(vname);
 	}
 	else if (strncmp(line, "inject", 6) == 0)
 	{
@@ -631,9 +631,9 @@ void production_rule_set::parse_command(const char *line)
 			if (idx >= 0)
 			{
 				if (strncmp(vtype, "request", 7) == 0)
-					set_scripted(channels[idx].req);
+					set_written(channels[idx].req);
 				else
-					set_scripted(channels[idx].ack);
+					set_written(channels[idx].ack);
 			}
 			else
 			{
@@ -642,7 +642,7 @@ void production_rule_set::parse_command(const char *line)
 						idx = i;
 				
 				if (idx >= 0)
-					set_scripted(buses[idx].name);
+					set_written(buses[idx].name);
 			}
 		}
 	}
