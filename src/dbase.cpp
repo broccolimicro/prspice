@@ -347,25 +347,30 @@ void production_rule_set::load_script(string filename, string mangle)
 		if (line.size() > 0)
 		{
 			string command = "";
-			/*if (strncmp(line.c_str(), "set", 3) == 0)
+			if (strncmp(line.c_str(), "set ", 4) == 0)
 			{
-				char v;
+				char v[256];
 				char vname[256];
-				if (sscanf(line.c_str(), "set %s %c", vname, &v) == 2)
+				if (sscanf(line.c_str(), "set %s %s", vname, v) == 2)
 				{
-					pr_index id = set_scripted(to_string(vname));
-					string name = mangle_name(id->name, mangle);
-					
-					if (find(initialized.begin(), initialized.end(), id) != initialized.end())
-						command = "" + name + " = " + to_string(v) + ";";
-					else
+					vector<pr_index> id = set_scripted(to_string(vname));
+					if (id.size() == 1)
 					{
-						init += "\t\t" + name + " = " + to_string(v) + ";\n";
-						initialized.push_back(id);
+						string name = mangle_name(id[0]->name, mangle);
+						
+						if (find(initialized.begin(), initialized.end(), id[0]) != initialized.end())
+							command = "" + name + " = " + to_string(v) + ";";
+						else
+						{
+							init += "\t\t" + name + " = " + to_string(v) + ";\n";
+							initialized.push_back(id[0]);
+						}
 					}
+					else
+						command = "$prsim_cmd(\"" + line + "\");";
 				}
 			}
-			else if (strncmp(line.c_str(), "assert", 3) == 0)
+			/*else if (strncmp(line.c_str(), "assert", 3) == 0)
 			{
 				char v;
 				char vname[256];
@@ -375,8 +380,8 @@ void production_rule_set::load_script(string filename, string mangle)
 					string name = mangle_name(id->name, mangle);
 					command = "if (" + name + " != " + to_string(v) + ") $display(\"assertion failed " + name + " == " + to_string(v) + "\");";
 				}
-			}
-			else*/ if (strncmp(line.c_str(), "advance", 7) == 0)
+			}*/
+			else if (strncmp(line.c_str(), "advance", 7) == 0)
 			{
 				int n = -1;
 				if (sscanf(line.c_str(), "advance %d", &n) == 1)
@@ -545,7 +550,7 @@ void production_rule_set::parse_command(const char *line)
 	else if (strncmp(line, "set ", 4) == 0)
 	{
 		if (sscanf(line, "set %s", vname) == 1)
-			set_written(to_string(vname));
+			set_scripted(to_string(vname));
 	}
 	else if (strncmp(line, "get ", 4) == 0)
 	{
