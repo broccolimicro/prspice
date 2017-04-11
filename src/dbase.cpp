@@ -483,7 +483,7 @@ void production_rule_set::load_script(string filename, string mangle)
 void production_rule_set::parse_command(const char *line)
 {
 	char vname[256];
-	if (strncmp(line, "array", 5) == 0)
+	if (strncmp(line, "array ", 6) == 0)
 	{
 		char dup[1024];
 		strncpy(dup, line, 1024);
@@ -521,7 +521,7 @@ void production_rule_set::parse_command(const char *line)
 			parse_command(new_cmd);
 		}
 	}
-	else if (strncmp(line, "source", 6) == 0)
+	else if (strncmp(line, "source ", 7) == 0)
 	{
 		char cmd[1024];
 		if (sscanf(line, "source %s", cmd) == 1)
@@ -529,12 +529,12 @@ void production_rule_set::parse_command(const char *line)
 			preview_script(cmd);
 		}
 	}
-	else if (strncmp(line, "cycle", 5) == 0)
+	else if (strncmp(line, "cycle ", 6) == 0)
 	{
 		if (sscanf(line, "cycle %s", vname) == 1)
 			set_read(vname);
 	}
-	else if (strncmp(line, "set_reset", 9) == 0)
+	else if (strncmp(line, "set_reset ", 10) == 0)
 	{
 		if (sscanf(line, "set_reset %s", vname) == 1)
 		{
@@ -542,55 +542,55 @@ void production_rule_set::parse_command(const char *line)
 			set_read(reset);
 		}
 	}
-	else if (strncmp(line, "set", 3) == 0)
+	else if (strncmp(line, "set ", 4) == 0)
 	{
 		if (sscanf(line, "set %s", vname) == 1)
 			set_written(to_string(vname));
 	}
-	else if (strncmp(line, "get", 3) == 0)
+	else if (strncmp(line, "get ", 4) == 0)
 	{
 		if (sscanf(line, "get %s", vname) == 1)
 			set_read(to_string(vname));
 	}
-	else if (strncmp(line, "assert", 6) == 0)
+	else if (strncmp(line, "assert ", 7) == 0)
 	{
 		if (sscanf(line, "assert %s", vname) == 1)
 			set_asserted(to_string(vname));
 	}
-	else if (strncmp(line, "seu", 3) == 0)
+	else if (strncmp(line, "seu ", 4) == 0)
 	{
 		if (sscanf(line, "seu %s", vname) == 1)
 			set_written(to_string(vname));
 	}
-	else if (strncmp(line, "uget", 4) == 0)
+	else if (strncmp(line, "uget ", 5) == 0)
 	{
 		if (sscanf(line, "uget %s", vname) == 1)
 			set_read(to_string(vname));
 	}
-	else if (strncmp(line, "watchall", 8) == 0)
+	else if (strncmp(line, "watchall ", 9) == 0)
 	{
 	}
-	else if (strncmp(line, "watch", 5) == 0)
+	else if (strncmp(line, "watch ", 6) == 0)
 	{
 		if (sscanf(line, "watch %s", vname) == 1)
 			set_read(to_string(vname));
 	}
-	else if (strncmp(line, "unwatch", 7) == 0)
+	else if (strncmp(line, "unwatch ", 8) == 0)
 	{
 		if (sscanf(line, "unwatch %s", vname) == 1)
 			set_read(to_string(vname));
 	}
-	else if (strncmp(line, "bundle", 6) == 0)
+	else if (strncmp(line, "bundle ", 7) == 0)
 	{
 		if (sscanf(line, "bundle %s", vname) == 1)
 			set_read(to_string(vname));
 	}
-	else if (strncmp(line, "vector", 6) == 0)
+	else if (strncmp(line, "vector ", 7) == 0)
 	{
 		if (sscanf(line, "vector %s", vname) == 1)
 			set_read(to_string(vname));
 	}
-	else if (strncmp(line, "channel", 7) == 0)
+	else if (strncmp(line, "channel ", 8) == 0)
 	{
 		char vproto[256] = "";
 		char vreq[256] = "";
@@ -603,7 +603,7 @@ void production_rule_set::parse_command(const char *line)
 			set_read(channels.back().ack);
 		}
 	}
-	else if (strncmp(line, "clocked_bus", 11) == 0)
+	else if (strncmp(line, "clocked_bus ", 12) == 0)
 	{
 		char vclk[256];
 		if (sscanf(line, "clocked_bus %s %s", vname, vclk) == 2)
@@ -613,12 +613,12 @@ void production_rule_set::parse_command(const char *line)
 			set_read(buses.back().clk);
 		}
 	}
-	else if (strncmp(line, "clock_source", 12) == 0)
+	else if (strncmp(line, "clock_source ", 13) == 0)
 	{
 		if (sscanf(line, "clock_source %s", vname) == 1)
 			set_written(vname);
 	}
-	else if (strncmp(line, "inject", 6) == 0)
+	else if (strncmp(line, "inject ", 7) == 0)
 	{
 		char vtype[256];
 		if (sscanf(line, "inject %s %s", vname, vtype) == 2)
@@ -646,27 +646,27 @@ void production_rule_set::parse_command(const char *line)
 			}
 		}
 	}
-	else if (strncmp(line, "set_alias", 9) == 0)
+	else if (strncmp(line, "set_alias ", 10) == 0)
 	{
 		if (sscanf(line, "set_alias %s", vname) == 1)
 			set_read(to_string(vname));
 	}
-	else if (strncmp(line, "alias", 5) == 0)
+	else if (strncmp(line, "alias ", 6) == 0)
 	{
 		if (sscanf(line, "alias %s", vname) == 1)
 			set_read(to_string(vname));
 	}
-	else if (strncmp(line, "fanin", 5) == 0)
+	else if (strncmp(line, "fanin ", 6) == 0)
 	{
 		if (sscanf(line, "fanin %s", vname) == 1)
 			set_read(to_string(vname));
 	}
-	else if (strncmp(line, "fanin-get", 9) == 0)
+	else if (strncmp(line, "fanin-get ", 10) == 0)
 	{
 		if (sscanf(line, "fanin-get %s", vname) == 1)
 			set_read(to_string(vname));
 	}
-	else if (strncmp(line, "fanout", 6) == 0)
+	else if (strncmp(line, "fanout ", 7) == 0)
 	{
 		if (sscanf(line, "fanout %s", vname) == 1)
 			set_read(to_string(vname));
