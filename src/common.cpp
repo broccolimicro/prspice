@@ -178,3 +178,27 @@ string getline(FILE *fptr)
 		result += string(buffer);
 	return result;
 }
+
+void copy_replace(char *target, const char *source, const char *search, int replace)
+{
+	int slen = strlen(search);
+	const char *s = source;
+	const char *p = NULL;
+	char *t = target;
+
+	while (1) {
+		p = strstr(s, search);
+		if (p == NULL)
+		{
+			strcpy(t, s);
+			return;
+		} else {
+			memcpy(t, s, p-s);
+			t += p-s;
+			t += sprintf(t, "%d", replace);
+			s = p + slen;
+			p = NULL;
+		}
+	}
+}
+

@@ -26,6 +26,46 @@ struct pr_variable
 	void add_names(vector<string> name, vector<bool> is_filtered);
 };
 
+struct channel
+{
+	channel() {}
+	channel(string name, string protocol, string req, string ack)
+	{
+		this->name = name;
+		this->protocol = protocol;
+		if (req.size() > 0)
+			this->req = name + "." + req;
+		else
+			this->req = name + ".d";
+
+		if (ack.size() > 0)
+			this->ack = name + "." + ack;
+		else
+			this->ack = name + "." + this->protocol[0];
+	}
+	~channel() {}
+
+	string name;
+	string protocol;
+	string req;
+	string ack;
+};
+
+struct bus
+{
+	bus() {}
+	bus(string name, string clk)
+	{
+		this->name = name;
+		this->clk = clk;
+	}
+	~bus() {}
+
+	string name;
+	string clk;
+};
+
+
 typedef list<pr_variable>::iterator pr_index;
 
 struct production_rule_set
@@ -40,25 +80,39 @@ struct production_rule_set
 
 	string init;
 	string script;
+	string reset;
+
+	vector<channel> channels;
+	vector<bus> buses;
 
 	bool filter_name(string name);
 	vector<bool> filter_names(vector<string> names);
 
 	pr_index indexof(string name);
 	pr_index set(string name);
-	pr_index set_written(string name);
+
+	vector<pr_index> set_all_recurse(char *pre, int pre_length, char *post, int post_length);
+	vector<pr_index> set_all(string name);
+	
+	vector<pr_index> set_written(string name);
 	bool is_written(string name);
-	pr_index set_read(string name);
+
+	vector<pr_index> set_read(string name);
 	bool is_read(string name);
-	pr_index set_scripted(string name);
+
+	vector<pr_index> set_scripted(string name);
 	bool is_scripted(string name);
-	pr_index set_asserted(string name);
+
+	vector<pr_index> set_asserted(string name);
 	bool is_asserted(string name);
-	pr_index set_aliased(string name);
+
+	vector<pr_index> set_aliased(string name);
 	bool is_aliased(string name);
+
 	void add_pr(string filename);
 	void load_prs(string filename);
 	void load_script(string filename, string mangle);
+	void parse_command(const char *line);
 	void preview_script(string filename);
 	void write_dbase(string filename);
 	void load_dbase(string filename);
