@@ -54,14 +54,16 @@ struct channel
 struct bus
 {
 	bus() {}
-	bus(string name, string clk)
+	bus(string name, string wires, string clk)
 	{
 		this->name = name;
+		this->wires = wires;
 		this->clk = clk;
 	}
 	~bus() {}
 
 	string name;
+	string wires;
 	string clk;
 };
 
@@ -78,6 +80,7 @@ struct production_rule_set
 	list<pr_variable> variables;
 	hashmap<string, pr_index, 10000> variable_map;
 
+	//bool init;
 	string init;
 	string script;
 	string reset;

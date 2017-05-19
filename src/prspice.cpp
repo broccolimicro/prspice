@@ -210,9 +210,9 @@ int main(int argc, char **argv)
 
 	// hack to prevent initial dc-initialization from messing with prsim
 	if (pack)
-		verilog += "\t\t$packprsim(\"env.prs\", \"names\");\n";
+		verilog += "\t\t#1 $packprsim(\"env.prs\", \"names\");\n";
 	else
-		verilog += "\t\t$prsim(\"env.prs\");\n";
+		verilog += "\t\t#1 $prsim(\"env.prs\");\n";
 	FILE *fxprs = fopen((dir + "/hsim.xprs").c_str(), "w");
 
 	for (pr_index i = prset.variables.begin(); i != prset.variables.end(); i++)

@@ -61,11 +61,13 @@ void pr_variable::add_names(vector<string> name, vector<bool> is_filtered)
 production_rule_set::production_rule_set()
 {
 	reset = "Reset";
+	//init = false;
 }
 
 production_rule_set::production_rule_set(string prsfile, string scriptfile, string mangle)
 {
 	reset = "Reset";
+	//init = false;
 	load_prs(prsfile);
 	load_script(scriptfile, mangle);
 }
@@ -365,6 +367,12 @@ void production_rule_set::load_script(string filename, string mangle)
 							init += "\t\t" + name + " = " + to_string(v) + ";\n";
 							initialized.push_back(id[0]);
 						}
+
+						/*if (!init)
+							command = "#1 " + name + " = " + to_string(v) + ";";
+						else
+							command = "" + name + " = " + to_string(v) + ";";
+						init = true;*/
 					}
 					else
 						command = "$prsim_cmd(\"" + line + "\");";
@@ -610,13 +618,30 @@ void production_rule_set::parse_command(const char *line)
 	}
 	else if (strncmp(line, "clocked_bus ", 12) == 0)
 	{
-		char vclk[256];
-		if (sscanf(line, "clocked_bus %s %s", vname, vclk) == 2)
+		char dup[1024];
+		strncpy(dup, line, 1024);
+		strtok(dup, " ");
+		char *name = strtok(NULL, " ");
+		char *clk = strtok(NULL, " ");
+		char *edge = strtok(NULL, " ");
+		unsigned char pair = 0;
+
+		char *tmp = strtok(NULL, " ");
+		while (tmp)
 		{
-			buses.push_back(bus(vname, vclk));
-			set_read(buses.back().name);
-			set_read(buses.back().clk);
+			if (strcmp(tmp, "pair") == 0)
+				pair = 1;
+			tmp = strtok(NULL, " ");
 		}
+
+		if (pair)
+			sprintf(vname, "%s.d[0:2]", name);
+		else
+			strcpy(vname, name);
+
+		buses.push_back(bus(name, vname, clk));
+		set_read(buses.back().wires);
+		set_read(buses.back().clk);
 	}
 	else if (strncmp(line, "clock_source ", 13) == 0)
 	{
@@ -647,7 +672,7 @@ void production_rule_set::parse_command(const char *line)
 						idx = i;
 				
 				if (idx >= 0)
-					set_written(buses[idx].name);
+					set_written(buses[idx].wires);
 			}
 		}
 	}
