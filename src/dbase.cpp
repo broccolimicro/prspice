@@ -307,6 +307,8 @@ void production_rule_set::add_pr(string line)
 				line = line.substr(5);
 			else if (strncmp(line.c_str(), "after", 5) == 0)
 				line = line.substr(8);
+			else if (strncmp(line.c_str(), "unstab", 6) == 0)
+				line = line.substr(7);
 			else
 				done = true;
 		}
@@ -342,6 +344,7 @@ void production_rule_set::load_script(string filename, string mangle)
 	vector<pr_index> initialized;
 	FILE *fscr = fopen(filename.c_str(), "r");
 	int delay = 0;
+	bool last_is_set = false;
 	while (!feof(fscr))
 	{
 		string line = trim(getline(fscr), "\n\r\t ");
@@ -360,13 +363,13 @@ void production_rule_set::load_script(string filename, string mangle)
 					{
 						string name = mangle_name(id[0]->name, mangle);
 						
-						if (find(initialized.begin(), initialized.end(), id[0]) != initialized.end())
+						//if (find(initialized.begin(), initialized.end(), id[0]) != initialized.end())
 							command = "" + name + " = " + to_string(v) + ";";
-						else
+						/*else
 						{
 							init += "\t\t" + name + " = " + to_string(v) + ";\n";
 							initialized.push_back(id[0]);
-						}
+						}*/
 
 						/*if (!init)
 							command = "#1 " + name + " = " + to_string(v) + ";";
@@ -376,6 +379,12 @@ void production_rule_set::load_script(string filename, string mangle)
 					}
 					else
 						command = "$prsim_cmd(\"" + line + "\");";
+
+					if (!last_is_set)
+					{
+						delay = max(delay, 1);
+						last_is_set = true;
+					}
 				}
 			}
 			/*else if (strncmp(line.c_str(), "assert", 3) == 0)
@@ -404,7 +413,10 @@ void production_rule_set::load_script(string filename, string mangle)
 			else if (strncmp(line.c_str(), "cycle", 5) == 0)
 				delay += 20;
 			else
+			{
+				last_is_set = false;
 				command = "$prsim_cmd(\"" + line + "\");";
+			}
 
 			if (command != "")
 			{
