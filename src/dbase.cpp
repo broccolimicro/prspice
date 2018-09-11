@@ -641,15 +641,14 @@ void production_rule_set::parse_command(const char *line)
 		char *tmp = strtok(NULL, " ");
 		while (tmp)
 		{
-			if (strcmp(tmp, "pair") == 0)
+			if (strncmp(tmp, "pair", 4) == 0)
 				pair = 1;
 			tmp = strtok(NULL, " ");
 		}
 
+		strcpy(vname, name);
 		if (pair)
-			sprintf(vname, "%s.d[0:2]", name);
-		else
-			strcpy(vname, name);
+			strcat(vname, ".d[0:2]");
 
 		buses.push_back(bus(name, vname, clk));
 		set_read(buses.back().wires);
