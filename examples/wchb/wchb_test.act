@@ -1,24 +1,24 @@
 import "wchb.act";
 
-export defproc test(globals g; e1of2 L, R)
+export defproc test(globals g; e1of<2> L, R)
 {
 	spec
 	{
-		mk_exclhi(L.f, L.t)
+		mk_exclhi(L.d[0], L.d[1])
 	}
 
 	prs <g.Vdd, g.GND>
 	{
-		g._sReset & L.e -> L.f+
-		~g._pReset | ~L.e -> L.f-
-		g._sReset & L.e -> L.t+
-		~g._pReset | ~L.e -> L.t-
-		R.f | R.t -> R.e-
-		~R.f & ~R.t -> R.e+
+		g._sReset & L.e -> L.d[0]+
+		~g._pReset | ~L.e -> L.d[0]-
+		g._sReset & L.e -> L.d[1]+
+		~g._pReset | ~L.e -> L.d[1]-
+		R.d[0] | R.d[1] -> R.e-
+		~R.d[0] & ~R.d[1] -> R.e+
 	}
 }
 
 globals g;
-e1of2 L, R;
+e1of<2> L, R;
 wchb dut(g, L, R);
 test env(g, L, R);
