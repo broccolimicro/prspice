@@ -24,7 +24,7 @@ int main(int argc, char **argv)
 	string script_file = "";
 	string dir = "";
 	bool pack = false;
-	string netgen_flags = "";
+	string prs2net_flags = "";
 	string sources = "g.Vdd=1.0v;g.GND=0.0v";
 
 	for (int i = 1; i < argc; i++)
@@ -42,21 +42,21 @@ int main(int argc, char **argv)
 		else if (string(argv[i]) == "-pack")
 			pack = true;
 		else if (string(argv[i]) == "-B")
-			netgen_flags += "-B";
+			prs2net_flags += "-B";
 		else if (test_file == "" && string(argv[i]).find(".act") != -1)
 			test_file = argv[i];
 		else if (script_file == "")
 			script_file = argv[i];
 		else
 		{
-			printf("usage: prspice -p \"process_name\" -i \"instance_name\" -C \"netgen config\" \"act_file\" \"script_file\"\n");
+			printf("usage: prspice -p \"process_name\" -i \"instance_name\" -C \"prs2net config\" \"act_file\" \"script_file\"\n");
 			exit(1);
 		}
 	}
 
 	if (process == "" || config == "" || test_file == "")
 	{
-		printf("usage: prspice -p \"process_name\" -i \"instance_name\" -C \"netgen config\" \"act_file\" \"script_file\"\n");
+		printf("usage: prspice -p \"process_name\" -i \"instance_name\" -C \"prs2net config\" \"act_file\" \"script_file\"\n");
 		exit(1);
 	}
 
@@ -80,14 +80,14 @@ int main(int argc, char **argv)
 	mangle = mangle.substr(1, mangle.find_last_of("\"")-1);
 
 	// Generate the production rules for the environment
-	string flat = "cflat -DDUT=false -DLAYOUT=false -DPRSIM=false " + test_file + " | prdbase \"" + script_file + "\" \"" + dir + "/dbase.dat\" \"" + instance + "\"";
+	string flat = "aflat -DDUT=false -DLAYOUT=false -DPRSIM=false " + test_file + " | prdbase \"" + script_file + "\" \"" + dir + "/dbase.dat\" \"" + instance + "\"";
 	if (pack)
 		flat += " | prspack " + dir + "/names";
 	flat += " > " + dir + "/env.prs";
 	exec(flat, debug);
 
 	// Get the spice netlist for the device under test
-	string spice_str = "netgen -X -DDUT=true " + netgen_flags + " -p \"" + process + "\" -C " + config + " " + test_file + " > " + dir + "/dut.spi";
+	string spice_str = "prs2net -DDUT=true -DLAYOUT=true -DPRSIM=false " + prs2net_flags + " -p \"" + process + "\" -C " + config + " " + test_file + " > " + dir + "/dut.spi";
 	exec(spice_str, debug);
 	
 	// Generate a wrapper spice subcircuit to connect up power and ground
