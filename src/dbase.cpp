@@ -398,13 +398,13 @@ void production_rule_set::load_script(string filename, string mangle)
 					command = "if (" + name + " != " + to_string(v) + ") $display(\"assertion failed " + name + " == " + to_string(v) + "\");";
 				}
 			}*/
-			else if (strncmp(line.c_str(), "advance", 7) == 0)
+			else if (strncmp(line.c_str(), "advance ", 8) == 0)
 			{
 				int n = -1;
 				if (sscanf(line.c_str(), "advance %d", &n) == 1)
 					delay += n;
 			}
-			else if (strncmp(line.c_str(), "step", 4) == 0)
+			else if (strncmp(line.c_str(), "step ", 5) == 0)
 			{
 				int n = -1;
 				if (sscanf(line.c_str(), "step %d", &n) == 1)
