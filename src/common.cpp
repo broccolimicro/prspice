@@ -123,42 +123,46 @@ string find_config(string config)
 
 string mangle_name(string name, string mangle)
 {
-	string result;
+	std::ostringstream result;
 	for (int i = 0; i < (int)name.size(); i++)
 	{
 		if (name[i] == '_')
-			result += "__";
+			result << "__";
 		else
 		{
 			int loc = mangle.find(name[i]);
 			if (loc == -1)	
-				result += name[i];
-			else
-				result += "_" + to_string(loc);
+				result << name[i];
+			else if (loc <= 9)
+				result << "_" << loc;
+			else if (loc > 9)
+				result << "_" << (loc-10 + 'a');
 		}
 	}
-	return result;
+	return result.str();
 }
 
 string demangle_name(string name, string mangle)
 {
-	string result;
+	std::ostringstream result;
 	for (int i = 0; i < (int)name.size(); i++)
 	{
 		if (name[i] == '_' && ++i < (int)name.size())
 		{
 			if (name[i] == '_')
-				result += "_";
+				result << "_";
 			else
 			{
 				int loc = name[i] - '0';
-				result += mangle[loc];
+				if (loc > 9)
+					loc = (name[i] - 'a') + 10;
+				result << mangle[loc];
 			}
 		}
 		else
-			result += name[i];
+			result << name[i];
 	}
-	return result;
+	return result.str();
 }
 
 string trim(string name, string discard)
