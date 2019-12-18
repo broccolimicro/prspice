@@ -136,7 +136,7 @@ string mangle_name(string name, string mangle)
 			else if (loc <= 9)
 				result << "_" << loc;
 			else if (loc > 9)
-				result << "_" << (loc-10 + 'a');
+				result << "_" << (char)('a' + loc-10);
 		}
 	}
 	return result.str();
