@@ -268,6 +268,7 @@ void production_rule_set::add_pr(string line)
 	if (line.size() > 0 && line[0] == '=')
 	{
 		vector<string> names = split(line, "\" \t\n\r=");
+
 		pr_index left  = indexof(names[0]);
 		pr_index right = indexof(names[1]);
 
