@@ -80,14 +80,14 @@ int main(int argc, char **argv)
 	mangle = mangle.substr(1, mangle.find_last_of("\"")-1);
 
 	// Generate the production rules for the environment
-	string flat = "cflat -DLAYOUT=false -DPRSIM=false " + test_file + " | prdbase \"" + script_file + "\" \"" + dir + "/dbase.dat\" \"" + instance + "\"";
+	string flat = "cflat -DDUT=false -DLAYOUT=false -DPRSIM=false " + test_file + " | prdbase \"" + script_file + "\" \"" + dir + "/dbase.dat\" \"" + instance + "\"";
 	if (pack)
 		flat += " | prspack " + dir + "/names";
 	flat += " > " + dir + "/env.prs";
 	exec(flat, debug);
 
 	// Get the spice netlist for the device under test
-	string spice_str = "netgen " + netgen_flags + " -p \"" + process + "\" -C " + config + " " + test_file + " > " + dir + "/dut.spi";
+	string spice_str = "netgen -X -DDUT=true " + netgen_flags + " -p \"" + process + "\" -C " + config + " " + test_file + " > " + dir + "/dut.spi";
 	exec(spice_str, debug);
 	
 	// Generate a wrapper spice subcircuit to connect up power and ground
