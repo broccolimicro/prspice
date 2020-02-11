@@ -47,7 +47,7 @@ int main(int argc, char **argv)
 			i--;
 			prs.delete_var(temp);
 		}
-		else if (has_prs)
+		else
 		{
 			for (int j = 0; j < (int)i->names.size()-1; j++)
 				printf("= \"%s\" \"%s\"\n", i->names[j].c_str(), i->names[j+1].c_str());

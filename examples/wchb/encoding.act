@@ -1,0 +1,48 @@
+import "logic.act";
+
+export template <pint N>
+deftype c1of <: int (bool d[N])
+{
+	set { }
+	get { }
+}
+
+export template <pint M, N, sz>
+defproc flip_c1of(globals g; c1of<N> a[M], b[M])
+{
+	::gate::buf<INVERT, RESET_X, sz> inv[M][N];
+	(;i:M: (;j:N:
+		inv[i][j](g, a[i].d[j], b[i].d[j]);
+	) )
+}
+
+export template <pint M, N, invert, sz>
+defproc valid_c1of(globals g; c1of<N> word[M]; bool v[M])
+{
+	::gate::or_tree<N, invert, RESET_X, sz> rail_valid[M];
+	(;i:M: rail_valid[i](g, word[i].d, v[i]); )
+}
+
+export template <pint M, N, invert, sz>
+defproc flip_valid_c1of(globals g; c1of<N> word[M]; bool v[M])
+{
+	::gate::and_tree<N, 1-invert, RESET_X, sz> rail_valid[M];
+	(;i:M: rail_valid[i](g, word[i].d, v[i]); )
+}
+
+export template <pint M, N, invert, reset, sz>
+defproc valid_cMx1ofN(globals g; c1of<N> word[M]; bool valid)
+{
+	bool word_valid[M];
+	valid_c1of<M, N, NO_INVERT, sz> get_word_valid(g, word, word_valid);
+	::gate::celem_tree<M, invert, reset, sz> get_valid(g, word_valid, valid);
+}
+
+export template <pint M, N, invert, reset, sz>
+defproc flip_valid_cMx1ofN(globals g; c1of<N> word[M]; bool valid)
+{
+	bool word_valid[M];
+	flip_valid_c1of<M, N, NO_INVERT, sz> get_word_valid(g, word, word_valid);
+	::gate::celem_tree<M, invert, reset, sz> get_valid(g, word_valid, valid);
+}
+

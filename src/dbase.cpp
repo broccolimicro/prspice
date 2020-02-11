@@ -60,10 +60,14 @@ void pr_variable::add_names(vector<string> name, vector<bool> is_filtered)
 
 production_rule_set::production_rule_set()
 {
+	reset = "Reset";
+	//init = false;
 }
 
 production_rule_set::production_rule_set(string prsfile, string scriptfile, string mangle)
 {
+	reset = "Reset";
+	//init = false;
 	load_prs(prsfile);
 	load_script(scriptfile, mangle);
 }
@@ -109,10 +113,80 @@ pr_index production_rule_set::set(string name)
 	return idx;
 }
 
-pr_index production_rule_set::set_written(string name)
+vector<pr_index> production_rule_set::set_all_recurse(char *pre, int pre_length, char *post, int post_length)
 {
-	pr_index index = set(name);
-	index->written = true;
+	int start = -1;
+	int end = -1;
+	int step = -1;
+	char *arr = NULL;
+	char *cptr = NULL;
+	for (cptr = post; *cptr != '\0'; cptr++)
+	{
+		if (*cptr == ']') {
+			if (end < 0) {
+				start = -1;
+				arr = NULL;
+			} else
+				break;
+		} if (start < 0) {
+			if (*cptr == '[') {
+				arr = cptr+1;
+				start = atoi(cptr+1);
+			}
+		} else if (end < 0) {
+			if (*cptr == ':')
+				end = atoi(cptr+1);
+		} else if (step < 0) {
+			if (*cptr == ':')
+				step = atoi(cptr+1);
+		}
+	}
+
+	if (arr)
+		*(arr-1) = '\0';
+
+	int last = pre_length + snprintf(pre+pre_length, post_length - pre_length, "%s", post);
+
+	if (arr)
+		*(arr-1) = '[';
+
+	if (start < 0)
+		return vector<pr_index>(1, set(string(pre)));
+	else
+	{
+		if (step < 0)
+			step = 1;
+		if (end < 0)
+			end = start+1;
+
+		vector<pr_index> result;
+		int i;
+		for (i = start; i < end; i += step)
+		{
+			pre_length = last + snprintf(pre+last, post_length-last, "[%d]", i);
+			vector<pr_index> temp = set_all_recurse(pre, pre_length, cptr+1, post_length);
+			result.insert(result.end(), temp.begin(), temp.end());
+		}
+		return result;
+	}
+	return vector<pr_index>();
+}
+
+vector<pr_index> production_rule_set::set_all(string name)
+{
+	char sNodes[1024];
+	strcpy(sNodes, name.c_str());
+	int length = strlen(sNodes)+1;
+	char pre[length];
+	pre[0] = '\0';
+	return set_all_recurse(pre, 0, sNodes, length);
+}
+
+vector<pr_index> production_rule_set::set_written(string name)
+{
+	vector<pr_index> index = set_all(name);
+	for (int i = 0; i < (int)index.size(); i++)
+		index[i]->written = true;
 	return index;
 }
 
@@ -124,10 +198,11 @@ bool production_rule_set::is_written(string name)
 	return false;
 }
 
-pr_index production_rule_set::set_read(string name)
+vector<pr_index> production_rule_set::set_read(string name)
 {
-	pr_index index = set(name);
-	index->read = true;
+	vector<pr_index> index = set_all(name);
+	for (int i = 0; i < (int)index.size(); i++)
+		index[i]->read = true;
 	return index;
 }
 
@@ -139,10 +214,11 @@ bool production_rule_set::is_read(string name)
 	return false;
 }
 
-pr_index production_rule_set::set_scripted(string name)
+vector<pr_index> production_rule_set::set_scripted(string name)
 {
-	pr_index index = set(name);
-	index->scripted = true;
+	vector<pr_index> index = set_all(name);
+	for (int i = 0; i < (int)index.size(); i++)
+		index[i]->scripted = true;
 	return index;
 }
 
@@ -154,10 +230,11 @@ bool production_rule_set::is_scripted(string name)
 	return false;
 }
 
-pr_index production_rule_set::set_asserted(string name)
+vector<pr_index> production_rule_set::set_asserted(string name)
 {
-	pr_index index = set(name);
-	index->asserted = true;
+	vector<pr_index> index = set_all(name);
+	for (int i = 0; i < (int)index.size(); i++)
+		index[i]->asserted = true;
 	return index;
 }
 
@@ -169,10 +246,11 @@ bool production_rule_set::is_asserted(string name)
 	return false;
 }
 
-pr_index production_rule_set::set_aliased(string name)
+vector<pr_index> production_rule_set::set_aliased(string name)
 {
-	pr_index index = set(name);
-	index->aliased = true;
+	vector<pr_index> index = set_all(name);
+	for (int i = 0; i < (int)index.size(); i++)
+		index[i]->aliased = true;
 	return index;
 }
 
@@ -229,6 +307,8 @@ void production_rule_set::add_pr(string line)
 				line = line.substr(5);
 			else if (strncmp(line.c_str(), "after", 5) == 0)
 				line = line.substr(8);
+			else if (strncmp(line.c_str(), "unstab", 6) == 0)
+				line = line.substr(7);
 			else
 				done = true;
 		}
@@ -264,6 +344,7 @@ void production_rule_set::load_script(string filename, string mangle)
 	vector<pr_index> initialized;
 	FILE *fscr = fopen(filename.c_str(), "r");
 	int delay = 0;
+	bool last_is_set = false;
 	while (!feof(fscr))
 	{
 		string line = trim(getline(fscr), "\n\r\t ");
@@ -271,25 +352,42 @@ void production_rule_set::load_script(string filename, string mangle)
 		if (line.size() > 0)
 		{
 			string command = "";
-			if (strncmp(line.c_str(), "set", 3) == 0)
+			if (strncmp(line.c_str(), "set ", 4) == 0)
 			{
-				char v;
+				char v[256];
 				char vname[256];
-				if (sscanf(line.c_str(), "set %s %c", vname, &v) == 2)
+				if (sscanf(line.c_str(), "set %s %s", vname, v) == 2)
 				{
-					pr_index id = set_scripted(to_string(vname));
-					string name = mangle_name(id->name, mangle);
-					
-					if (find(initialized.begin(), initialized.end(), id) != initialized.end())
-						command = "" + name + " = " + to_string(v) + ";";
-					else
+					vector<pr_index> id = set_scripted(to_string(vname));
+					if (id.size() == 1)
 					{
-						init += "\t\t" + name + " = " + to_string(v) + ";\n";
-						initialized.push_back(id);
+						string name = mangle_name(id[0]->name, mangle);
+						
+						//if (find(initialized.begin(), initialized.end(), id[0]) != initialized.end())
+							command = "" + name + " = " + to_string(v) + ";";
+						/*else
+						{
+							init += "\t\t" + name + " = " + to_string(v) + ";\n";
+							initialized.push_back(id[0]);
+						}*/
+
+						/*if (!init)
+							command = "#1 " + name + " = " + to_string(v) + ";";
+						else
+							command = "" + name + " = " + to_string(v) + ";";
+						init = true;*/
+					}
+					else
+						command = "$prsim_cmd(\"" + line + "\");";
+
+					if (!last_is_set)
+					{
+						delay = max(delay, 1);
+						last_is_set = true;
 					}
 				}
 			}
-			else if (strncmp(line.c_str(), "assert", 3) == 0)
+			/*else if (strncmp(line.c_str(), "assert", 3) == 0)
 			{
 				char v;
 				char vname[256];
@@ -299,14 +397,14 @@ void production_rule_set::load_script(string filename, string mangle)
 					string name = mangle_name(id->name, mangle);
 					command = "if (" + name + " != " + to_string(v) + ") $display(\"assertion failed " + name + " == " + to_string(v) + "\");";
 				}
-			}
-			else if (strncmp(line.c_str(), "advance", 7) == 0)
+			}*/
+			else if (strncmp(line.c_str(), "advance ", 8) == 0)
 			{
 				int n = -1;
 				if (sscanf(line.c_str(), "advance %d", &n) == 1)
 					delay += n;
 			}
-			else if (strncmp(line.c_str(), "step", 4) == 0)
+			else if (strncmp(line.c_str(), "step ", 5) == 0)
 			{
 				int n = -1;
 				if (sscanf(line.c_str(), "step %d", &n) == 1)
@@ -315,7 +413,10 @@ void production_rule_set::load_script(string filename, string mangle)
 			else if (strncmp(line.c_str(), "cycle", 5) == 0)
 				delay += 20;
 			else
+			{
+				last_is_set = false;
 				command = "$prsim_cmd(\"" + line + "\");";
+			}
 
 			if (command != "")
 			{
@@ -341,108 +442,285 @@ void production_rule_set::load_script(string filename, string mangle)
 	fclose(fscr);	
 }
 
-struct channel
-{
-	channel() {}
-	channel(string name, string type, int N)
-	{
-		this->name = name;
-		this->type = type;
-		this->N = N;
-	}
-	~channel() {}
+/*
+== General ==
+  help - display this message
+  exit - terminate
+  source <file> - read in a script file
+  array <variable> <range> <command> - execute multiple of one command
+  save <file> - save a simulation checkpoint to the specified file
+  restore <file> - restore simulation from a checkpoint
 
-	string name;
-	string type;
-	int N;
-};
+== Timing ==
+  random [min max] - random timings
+  random_seed <seed> - set random number seed
+  norandom - deterministic timings
+  random_excl on|off - turn on/off random exclhi/lo firings
+  after <n> <minu> <maxu> <mind> <maxd> - node set to random times within range
+
+== Running Simulation ==
+  mode reset|run|unstab|nounstab - set running mode
+  initialize - initialize the simulation
+  step [<steps>] - run for <steps> simulation steps (default is 1)
+  advance [<duration>] - run for <duration> units of simulation time (default is 1)
+  cycle [<node>] - run until the next transition on <node> (default is forever)
+  break <node> - set a breakpoint on <node>
+  break-on-warn - stops/doesn't stop simulation on instability/inteference
+  exit-on-warn - like break-on-warn, but exits prsim
+
+== Setting/Getting Node Values ==
+  set <variable> <value> - set the node, bus, or vector <variable> to specified <value>
+  get <variable> - get value of a node, bus, or vector <variable>
+  assert <variable> <value> - assert that the node, bus, or vector <variable> is <value>
+  seu <node> 0|1|X <start-delay> <dur> - Delayed SEU event on node lasting for <dur> units
+  uget <n> - get value of node <n> but report its canonical name
+  watch <n> - add watchpoint for <n>
+  unwatch <n> - delete watchpoint for <n>
+  watchall - watch all nodes
+
+== Channel Commands ==
+  bundle <nodes> [low|high] - specify a bundle (1ofN)
+  vector <nodes> [low|high] - specify a vector (NofN)
+  channel <name> <protocol> [<request> [<acknowledge>]] - create channel
+  clocked_bus <nodes> <clk> posedge|negedge [half|full] [invert] [signed] - create clocked bus
+  clock_source <node> [wait|<delay_up> <delay_dn>] [low|high] - set a clock source that toggles the node
+  set_reset <name> - set the reset node that's used to reset the channel interfaces
+  inject <name> (request|acknowledge) [init] [loop] <file> - inject values in <file> into channel <name>
+  expect <name> (request|acknowledge) [loop] <file> - check channel outputs against values in file
+  dump <name> (request|acknowledge) <file> - dump channel output to file
+
+== Debug ==
+  status 0|1|X [[^]str] - list all nodes with specified value, optional prefix/string match
+  pending - dump pending events
+  set_alias <n> - make <n> the primary name in the alias listing for node <n>
+  alias <n> - list aliases for <n>
+  fanin <n> - list fanin for <n>
+  fanin-get <n> - list fanin with values for <n>
+  fanout <n> - list fanout for <n>
+
+== Tracing ==
+  dumptc <file> - dump transition counts for nodes to <file>
+  cleartc - clear transition counts for nodes
+  pairtc - turns on <input/output> pair transition counts
+  trace <file> <time> - Create atrace file for <time> duration
+  timescale <t> - set time scale to <t> picoseconds for tracing
+*/
+void production_rule_set::parse_command(const char *line)
+{
+	char vname[256];
+	if (strncmp(line, "array ", 6) == 0)
+	{
+		char dup[1024];
+		strncpy(dup, line, 1024);
+		char *token = strtok(dup, " ");
+		char *name = strtok(NULL, " ");
+		char *range = strtok(NULL, " ");
+		char *cmd = strtok(NULL, "");
+
+		int start = -1;
+		int end = -1;
+		int step = -1;
+
+		start = atoi(range);
+		char *cptr;
+		for (cptr = range; *cptr != '\0'; cptr++)
+		{
+			if (*cptr == ':')
+			{
+				if (end < 0)
+					end = atoi(cptr+1);
+				else if (step < 0)
+					step = atoi(cptr+1);
+			}
+		}
+
+		if (end < 0)
+			end = start+1;
+		if (step < 0)
+			step = 1;
+
+		char new_cmd[1024];
+		for (int i = start; i < end; i += step)
+		{
+			copy_replace(new_cmd, cmd, name, i);
+			parse_command(new_cmd);
+		}
+	}
+	else if (strncmp(line, "source ", 7) == 0)
+	{
+		char cmd[1024];
+		if (sscanf(line, "source %s", cmd) == 1)
+		{
+			preview_script(cmd);
+		}
+	}
+	else if (strncmp(line, "cycle ", 6) == 0)
+	{
+		if (sscanf(line, "cycle %s", vname) == 1)
+			set_read(vname);
+	}
+	else if (strncmp(line, "set_reset ", 10) == 0)
+	{
+		if (sscanf(line, "set_reset %s", vname) == 1)
+		{
+			reset = vname;
+			set_read(reset);
+		}
+	}
+	else if (strncmp(line, "set ", 4) == 0)
+	{
+		if (sscanf(line, "set %s", vname) == 1)
+			set_scripted(to_string(vname));
+	}
+	else if (strncmp(line, "get ", 4) == 0)
+	{
+		if (sscanf(line, "get %s", vname) == 1)
+			set_read(to_string(vname));
+	}
+	else if (strncmp(line, "assert ", 7) == 0)
+	{
+		if (sscanf(line, "assert %s", vname) == 1)
+			set_asserted(to_string(vname));
+	}
+	else if (strncmp(line, "seu ", 4) == 0)
+	{
+		if (sscanf(line, "seu %s", vname) == 1)
+			set_written(to_string(vname));
+	}
+	else if (strncmp(line, "uget ", 5) == 0)
+	{
+		if (sscanf(line, "uget %s", vname) == 1)
+			set_read(to_string(vname));
+	}
+	else if (strncmp(line, "watchall ", 9) == 0)
+	{
+	}
+	else if (strncmp(line, "watch ", 6) == 0)
+	{
+		if (sscanf(line, "watch %s", vname) == 1)
+			set_read(to_string(vname));
+	}
+	else if (strncmp(line, "unwatch ", 8) == 0)
+	{
+		if (sscanf(line, "unwatch %s", vname) == 1)
+			set_read(to_string(vname));
+	}
+	else if (strncmp(line, "bundle ", 7) == 0)
+	{
+		if (sscanf(line, "bundle %s", vname) == 1)
+			set_read(to_string(vname));
+	}
+	else if (strncmp(line, "vector ", 7) == 0)
+	{
+		if (sscanf(line, "vector %s", vname) == 1)
+			set_read(to_string(vname));
+	}
+	else if (strncmp(line, "channel ", 8) == 0)
+	{
+		char vproto[256] = "";
+		char vreq[256] = "";
+		char vack[256] = "";
+		set_read(reset);
+		if (sscanf(line, "channel %s %s %s %s", vname, vproto, vreq, vack) >= 2)
+		{
+			channels.push_back(channel(vname, vproto, vreq, vack));
+			set_read(channels.back().req);
+			set_read(channels.back().ack);
+		}
+	}
+	else if (strncmp(line, "clocked_bus ", 12) == 0)
+	{
+		char dup[1024];
+		strncpy(dup, line, 1024);
+		strtok(dup, " ");
+		char *name = strtok(NULL, " ");
+		char *clk = strtok(NULL, " ");
+		char *edge = strtok(NULL, " ");
+		unsigned char pair = 0;
+
+		char *tmp = strtok(NULL, " ");
+		while (tmp)
+		{
+			if (strncmp(tmp, "pair", 4) == 0)
+				pair = 1;
+			tmp = strtok(NULL, " ");
+		}
+
+		strcpy(vname, name);
+		if (pair)
+			strcat(vname, ".d[0:2]");
+
+		buses.push_back(bus(name, vname, clk));
+		set_read(buses.back().wires);
+		set_read(buses.back().clk);
+	}
+	else if (strncmp(line, "clock_source ", 13) == 0)
+	{
+		if (sscanf(line, "clock_source %s", vname) == 1)
+			set_written(vname);
+	}
+	else if (strncmp(line, "inject ", 7) == 0)
+	{
+		char vtype[256];
+		if (sscanf(line, "inject %s %s", vname, vtype) == 2)
+		{
+			int idx = -1;
+			for (int i = 0; i < (int)channels.size() && idx < 0; i++)
+				if (channels[i].name == to_string(vname))
+					idx = i;
+
+			if (idx >= 0)
+			{
+				if (strncmp(vtype, "request", 7) == 0)
+					set_written(channels[idx].req);
+				else
+					set_written(channels[idx].ack);
+			}
+			else
+			{
+				for (int i = 0; i < (int)buses.size() && idx < 0; i++)
+					if (buses[i].name == to_string(vname))
+						idx = i;
+				
+				if (idx >= 0)
+					set_written(buses[idx].wires);
+			}
+		}
+	}
+	else if (strncmp(line, "set_alias ", 10) == 0)
+	{
+		if (sscanf(line, "set_alias %s", vname) == 1)
+			set_read(to_string(vname));
+	}
+	else if (strncmp(line, "alias ", 6) == 0)
+	{
+		if (sscanf(line, "alias %s", vname) == 1)
+			set_read(to_string(vname));
+	}
+	else if (strncmp(line, "fanin ", 6) == 0)
+	{
+		if (sscanf(line, "fanin %s", vname) == 1)
+			set_read(to_string(vname));
+	}
+	else if (strncmp(line, "fanin-get ", 10) == 0)
+	{
+		if (sscanf(line, "fanin-get %s", vname) == 1)
+			set_read(to_string(vname));
+	}
+	else if (strncmp(line, "fanout ", 7) == 0)
+	{
+		if (sscanf(line, "fanout %s", vname) == 1)
+			set_read(to_string(vname));
+	}
+}
 
 void production_rule_set::preview_script(string filename)
 {
 	FILE *fscr = fopen(filename.c_str(), "r");
-	vector<channel> channels;
 	while (!feof(fscr))
 	{
 		string line = getline(fscr);
-		
-		if (line.size() > 0)
-		{
-			if (strncmp(line.c_str(), "set", 3) == 0)
-			{
-				char v;
-				char vname[256];
-				if (sscanf(line.c_str(), "set %s %c", vname, &v) == 2)
-					set_scripted(to_string(vname));
-			}
-			else if (strncmp(line.c_str(), "assert", 3) == 0)
-			{
-				char v;
-				char vname[256];
-				if (sscanf(line.c_str(), "assert %s %c", vname, &v) == 2)
-					set_asserted(to_string(vname));
-			}
-			else if (strncmp(line.c_str(), "channel", 7) == 0)
-			{
-				char vtype[256];
-				int vN = 0;
-				char vname[256];
-				if (sscanf(line.c_str(), "channel %s %d %s", vtype, &vN, vname) == 3)
-				{
-					set_read("Reset");
-					if (strncmp(vtype, "e1ofN", 5) == 0)
-					{
-						for (int i = 0; i < vN; i++)
-							set_read(to_string(vname) + ".d[" + to_string(i) + "]");
-						set_read(to_string(vname) + ".e");
-					}
-					else if (strncmp(vtype, "eMx1of2", 7) == 0 || strncmp(vtype, "eDx1of2", 7) == 0)
-					{
-						for (int i = 0; i < vN; i++)
-							for (int j = 0; j < 2; j++)
-								set_read(to_string(vname) + ".b[" + to_string(i) + "].d[" + to_string(j) + "]");
-						set_read(to_string(vname) + ".e");
-					}
-					else if (strncmp(vtype, "eMx1of4", 7) == 0)
-					{
-						for (int i = 0; i < vN; i++)
-							for (int j = 0; j < 4; j++)
-								set_read(to_string(vname) + ".b[" + to_string(i) + "].d[" + to_string(j) + "]");
-						set_read(to_string(vname) + ".e");	
-					}
-					channels.push_back(channel(vname, vtype, vN));
-				}
-			}
-			else if (strncmp(line.c_str(), "injectfile", 10) == 0)
-			{
-				char vname[256];
-				char vfile[256];
-				if (sscanf(line.c_str(), "injectfile %s %s", vname, vfile) == 2)
-				{
-					set_read("Reset");
-					for (int c = 0; c < (int)channels.size(); c++)
-						if (channels[c].name == to_string(vname))
-						{
-							if (channels[c].type == "e1ofN")
-							{
-								for (int i = 0; i < channels[c].N; i++)
-									set_written(channels[c].name + ".d[" + to_string(i) + "]");
-							}
-							else if (channels[c].type == "eMx1of2" || channels[c].type == "eDx1of2")
-							{
-								for (int i = 0; i < channels[c].N; i++)
-									for (int j = 0; j < 2; j++)
-										set_written(channels[c].name + ".b[" + to_string(i) + "].d[" + to_string(j) + "]");
-							}
-							else if (channels[c].type == "eMx1of4")
-							{
-								for (int i = 0; i < channels[c].N; i++)
-									for (int j = 0; j < 4; j++)
-										set_written(channels[c].name + ".b[" + to_string(i) + "].d[" + to_string(j) + "]");
-							}
-						}
-				}
-			}
-		}
+		parse_command(line.c_str());	
 	}
 
 	fclose(fscr);	

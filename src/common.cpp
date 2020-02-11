@@ -123,42 +123,46 @@ string find_config(string config)
 
 string mangle_name(string name, string mangle)
 {
-	string result;
+	std::ostringstream result;
 	for (int i = 0; i < (int)name.size(); i++)
 	{
 		if (name[i] == '_')
-			result += "__";
+			result << "__";
 		else
 		{
 			int loc = mangle.find(name[i]);
 			if (loc == -1)	
-				result += name[i];
-			else
-				result += "_" + to_string(loc);
+				result << name[i];
+			else if (loc <= 9)
+				result << "_" << loc;
+			else if (loc > 9)
+				result << "_" << (char)('a' + loc-10);
 		}
 	}
-	return result;
+	return result.str();
 }
 
 string demangle_name(string name, string mangle)
 {
-	string result;
+	std::ostringstream result;
 	for (int i = 0; i < (int)name.size(); i++)
 	{
 		if (name[i] == '_' && ++i < (int)name.size())
 		{
 			if (name[i] == '_')
-				result += "_";
+				result << "_";
 			else
 			{
 				int loc = name[i] - '0';
-				result += mangle[loc];
+				if (loc > 9)
+					loc = (name[i] - 'a') + 10;
+				result << mangle[loc];
 			}
 		}
 		else
-			result += name[i];
+			result << name[i];
 	}
-	return result;
+	return result.str();
 }
 
 string trim(string name, string discard)
@@ -178,3 +182,27 @@ string getline(FILE *fptr)
 		result += string(buffer);
 	return result;
 }
+
+void copy_replace(char *target, const char *source, const char *search, int replace)
+{
+	int slen = strlen(search);
+	const char *s = source;
+	const char *p = NULL;
+	char *t = target;
+
+	while (1) {
+		p = strstr(s, search);
+		if (p == NULL)
+		{
+			strcpy(t, s);
+			return;
+		} else {
+			memcpy(t, s, p-s);
+			t += p-s;
+			t += sprintf(t, "%d", replace);
+			s = p + slen;
+			p = NULL;
+		}
+	}
+}
+
