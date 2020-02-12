@@ -540,9 +540,11 @@ void production_rule_set::parse_command(const char *line)
 			step = 1;
 
 		char new_cmd[1024];
+		char name2[32];
+		sprintf(name2, "{%s}", name);
 		for (int i = start; i < end; i += step)
 		{
-			copy_replace(new_cmd, cmd, name, i);
+			copy_replace(new_cmd, cmd, name2, i);
 			parse_command(new_cmd);
 		}
 	}
