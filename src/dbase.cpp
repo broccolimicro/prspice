@@ -399,13 +399,13 @@ void production_rule_set::load_script(string filename, string mangle)
 					command = "if (" + name + " != " + to_string(v) + ") $display(\"assertion failed " + name + " == " + to_string(v) + "\");";
 				}
 			}*/
-			else if (strncmp(line.c_str(), "advance", 7) == 0)
+			else if (strncmp(line.c_str(), "advance ", 8) == 0)
 			{
 				int n = -1;
 				if (sscanf(line.c_str(), "advance %d", &n) == 1)
 					delay += n;
 			}
-			else if (strncmp(line.c_str(), "step", 4) == 0)
+			else if (strncmp(line.c_str(), "step ", 5) == 0)
 			{
 				int n = -1;
 				if (sscanf(line.c_str(), "step %d", &n) == 1)
@@ -541,9 +541,11 @@ void production_rule_set::parse_command(const char *line)
 			step = 1;
 
 		char new_cmd[1024];
+		char name2[32];
+		sprintf(name2, "{%s}", name);
 		for (int i = start; i < end; i += step)
 		{
-			copy_replace(new_cmd, cmd, name, i);
+			copy_replace(new_cmd, cmd, name2, i);
 			parse_command(new_cmd);
 		}
 	}
