@@ -103,7 +103,7 @@ string find_config(string config)
 		char *cad = getenv("ACT_HOME");
 		if (cad != NULL)
 		{
-			config_path = string(cad) + "/lib/act/" + config_path;
+			config_path = string(cad) + "/conf/" + config_path + "/global";
 
 			if (!file_exists(config_path) && config_path.find(".conf") == -1)
 				config_path += ".conf";

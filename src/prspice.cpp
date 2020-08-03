@@ -87,7 +87,7 @@ int main(int argc, char **argv)
 	exec(flat, debug);
 
 	// Get the spice netlist for the device under test
-	string spice_str = "prs2net -DDUT=true -DLAYOUT=true -DPRSIM=false " + prs2net_flags + " -p \"" + process + "\" -C " + config + " " + test_file + " > " + dir + "/dut.spi";
+	string spice_str = "prs2net -T" + config + " -DDUT=true -DLAYOUT=true -DPRSIM=false " + prs2net_flags + " -p \"" + process + "\" " + test_file + " > " + dir + "/dut.spi";
 	exec(spice_str, debug);
 	
 	// Generate a wrapper spice subcircuit to connect up power and ground
