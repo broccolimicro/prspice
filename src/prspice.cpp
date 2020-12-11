@@ -75,7 +75,7 @@ int main(int argc, char **argv)
 	string config_path = find_config(config);
 
 	// get the mangle string
-	string mangle_str = "grep mangle_chars \"" + config_path + "\" | grep -o \"\\\".*\\\"\"";
+	string mangle_str = "grep -r mangle_chars \"" + config_path + "\" | grep -o \"\\\".*\\\"\"";
 	string mangle = exec(mangle_str, debug);
 	mangle = mangle.substr(1, mangle.find_last_of("\"")-1);
 
@@ -115,7 +115,7 @@ int main(int argc, char **argv)
 	for (int i = 0; i < (int)drivers.size(); i++)
 		fprintf(ftest, "vpwr%d %s 0 dc %s\n", i, drivers[i].first.c_str(), drivers[i].second.c_str());
 	fprintf(ftest, "\n");
-	fprintf(ftest, ".inc %s/lib/spice/%s.spi\n", getenv("VLSI_INSTALL"), config.c_str());
+	fprintf(ftest, ".inc %s/lib/spice/%s.spi\n", getenv("ACT_HOME"), config.c_str());
 	fprintf(ftest, ".inc dut.spi\n\n");
 	fprintf(ftest, ".print v(*)\n");
 	for (int i = 0; i < (int)drivers.size(); i++)
