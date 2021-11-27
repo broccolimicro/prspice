@@ -118,9 +118,11 @@ int main(int argc, char **argv)
 		printf("unable to open test file\n");
 		exit(1);
 	}
-	
-	for (int i = 0; i < (int)drivers.size(); i++)
-		fprintf(ftest, ".global %s\n", drivers[i].first.c_str());
+
+	// instantiate local power sources	
+	for (int i = 0; i < (int)drivers.size(); i++) {
+		fprintf(ftest, "c%s %s 0 1.0\n", drivers[i].first.c_str(), drivers[i].first.c_str());
+	}
 	fprintf(ftest, "\n");
 	for (int i = 0; i < (int)drivers.size(); i++)
 		fprintf(ftest, "vpwr%d %s 0 dc %s\n", i, drivers[i].first.c_str(), drivers[i].second.c_str());
