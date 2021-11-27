@@ -64,12 +64,12 @@ production_rule_set::production_rule_set()
 	//init = false;
 }
 
-production_rule_set::production_rule_set(string prsfile, string scriptfile, string mangle)
+production_rule_set::production_rule_set(string prsfile, string scriptfile, config conf)
 {
 	reset = "Reset";
 	//init = false;
 	load_prs(prsfile);
-	load_script(scriptfile, mangle);
+	load_script(scriptfile, conf);
 }
 
 production_rule_set::~production_rule_set()
@@ -340,7 +340,7 @@ void production_rule_set::load_prs(string filename)
 	fclose(fenv);
 }
 
-void production_rule_set::load_script(string filename, string mangle)
+void production_rule_set::load_script(string filename, config conf)
 {
 	vector<pr_index> initialized;
 	FILE *fscr = fopen(filename.c_str(), "r");
@@ -362,7 +362,7 @@ void production_rule_set::load_script(string filename, string mangle)
 					vector<pr_index> id = set_scripted(to_string(vname));
 					if (id.size() == 1)
 					{
-						string name = mangle_name(id[0]->name, mangle);
+						string name = conf.mangle_name(id[0]->name);
 						
 						//if (find(initialized.begin(), initialized.end(), id[0]) != initialized.end())
 							command = "" + name + " = " + to_string(v) + ";";
@@ -395,7 +395,7 @@ void production_rule_set::load_script(string filename, string mangle)
 				if (sscanf(line.c_str(), "assert %s %c", vname, &v) == 2)
 				{
 					pr_index id = set_asserted(to_string(vname));
-					string name = mangle_name(id->name, mangle);
+					string name = conf.mangle_name(id->name);
 					command = "if (" + name + " != " + to_string(v) + ") $display(\"assertion failed " + name + " == " + to_string(v) + "\");";
 				}
 			}*/

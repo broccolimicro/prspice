@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "hash.h"
+#include "config.h"
 
 struct pr_variable
 {
@@ -73,7 +74,7 @@ typedef list<pr_variable>::iterator pr_index;
 struct production_rule_set
 {
 	production_rule_set();
-	production_rule_set(string prsfile, string scriptfile, string mangle);
+	production_rule_set(string prsfile, string scriptfile, config conf);
 	~production_rule_set();
 
 	vector<string> filter;
@@ -114,7 +115,7 @@ struct production_rule_set
 
 	void add_pr(string filename);
 	void load_prs(string filename);
-	void load_script(string filename, string mangle);
+	void load_script(string filename, config conf);
 	void parse_command(const char *line);
 	void preview_script(string filename);
 	void write_dbase(string filename);

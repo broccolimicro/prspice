@@ -1,5 +1,6 @@
 #include "common.h"
 #include "dbase.h"
+#include "config.h"
 
 vector<pair<string, string> > parse_sources(string sources)
 {
@@ -19,7 +20,7 @@ int main(int argc, char **argv)
 
 	string process = "";
 	string instance = "dut";
-	string config = "";
+	string tech = "";
 	string test_file = "";
 	string script_file = "";
 	string dir = "";
@@ -30,7 +31,7 @@ int main(int argc, char **argv)
 	for (int i = 1; i < argc; i++)
 	{
 		if (string(argv[i]) == "-C" && ++i < argc)
-			config = argv[i];
+			tech = argv[i];
 		else if (string(argv[i]) == "-p" && ++i < argc)
 			process = argv[i];
 		else if (string(argv[i]) == "-i" && ++i < argc)
@@ -56,7 +57,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (process == "" || config == "" || test_file == "")
+	if (process == "" || tech == "" || test_file == "")
 	{
 		printf("usage: prspice -p \"process_name\" -i \"instance_name\" -C \"prs2net config\" \"act_file\" \"script_file\"\n");
 		exit(1);
@@ -67,13 +68,9 @@ int main(int argc, char **argv)
 
 	// Create the run directory
 	exec("mkdir " + dir);
-	
-	string config_path = find_config(config);
 
-	// get the mangle string
-	string mangle_str = "grep -r mangle_chars \"" + config_path + "\" | grep -o \"\\\".*\\\"\"";
-	string mangle = exec(mangle_str, debug);
-	mangle = mangle.substr(1, mangle.find_last_of("\"")-1);
+	config conf;
+	conf.load(tech);	
 
 	// Generate the production rules for the environment
 	string flat = "aflat -DDUT=false -DLAYOUT=false -DPRSIM=false " + test_file + " | prdbase \"" + script_file + "\" \"" + dir + "/dbase.dat\" \"" + instance + "\"";
@@ -83,7 +80,7 @@ int main(int argc, char **argv)
 	exec(flat, debug);
 
 	// Get the spice netlist for the device under test
-	string spice_str = "prs2net -T" + config + " -DDUT=true -DLAYOUT=true -DPRSIM=false " + prs2net_flags + " -p \"" + process + "\" " + test_file + " > " + dir + "/dut.spi";
+	string spice_str = "prs2net -T" + tech + " -DDUT=true -DLAYOUT=true -DPRSIM=false " + prs2net_flags + " -p \"" + process + "\" " + test_file + " > " + dir + "/dut.spi";
 	exec(spice_str, debug);
 	
 	// Generate a wrapper spice subcircuit to connect up power and ground
@@ -93,32 +90,24 @@ int main(int argc, char **argv)
 
 	vector<pair<string, string> > drivers = parse_sources(sources);
 	for (int i = 0; i < (int)drivers.size(); i++) {
-		drivers[i].first = mangle_name(drivers[i].first, mangle);
+		drivers[i].first = conf.mangle_name(drivers[i].first);
 	}
 
 	// Load dbase
 	production_rule_set prset;
 	prset.load_dbase(dir + "/dbase.dat");
-	prset.load_script(script_file, mangle);
+	prset.load_script(script_file, conf);
 	vector<pr_index> vlist;
 
 	for (int i = 2; i < (int)subckt.size(); i++)
 	{
-		bool found = false;
-		for (int j = 0; j < (int)drivers.size() && !found; j++)
-			found = (drivers[j].first == subckt[i]);
+		string name = instance + "." + conf.demangle_name(subckt[i]);
+		pr_index index = prset.indexof(name);	
 
-		if (!found) {
-			string name = demangle_name(subckt[i], mangle);
-			pr_index index = prset.indexof(name);
-			if (index == prset.variables.end())
-				index = prset.indexof(instance + "." + name);
-
-			if (index == prset.variables.end())
-				vlist.push_back(prset.set(name));
-			else
-				vlist.push_back(index);
-		}
+		if (index == prset.variables.end())
+			vlist.push_back(prset.set(name));
+		else
+			vlist.push_back(index);
 	}
 
 	// Generate spice test file and prsim script file
@@ -136,7 +125,7 @@ int main(int argc, char **argv)
 	for (int i = 0; i < (int)drivers.size(); i++)
 		fprintf(ftest, "vpwr%d %s 0 dc %s\n", i, drivers[i].first.c_str(), drivers[i].second.c_str());
 	fprintf(ftest, "\n");
-	fprintf(ftest, ".inc %s/lib/spice/%s.spi\n", getenv("ACT_HOME"), config.c_str());
+	fprintf(ftest, ".inc %s/lib/spice/%s.spi\n", getenv("ACT_HOME"), tech.c_str());
 	fprintf(ftest, ".inc dut.spi\n\n");
 	
 	// Print header for prsim script file
@@ -150,19 +139,25 @@ int main(int argc, char **argv)
 	// Connect signals
 	for (pr_index i = prset.variables.begin(); i != prset.variables.end(); i++)
 	{
-		string name = i->name;
-		string mname = mangle_name(name, mangle);
-
-		// If the signal is driven by the production rules then it comes from prsim. Otherwise it goes to prsim
-		if ((i->written || i->scripted) && find(vlist.begin(), vlist.end(), i) != vlist.end())
-		{
-			fprintf(fsim, "dac %s ydac!%s 1.8 143e-12 143e-12\n", name.c_str(), mname.c_str());
-			fprintf(ftest, "ydac %s %s 0 prsimDAC\n", mname.c_str(), mname.c_str());
+		bool found = false;
+		for (int j = 0; j < (int)drivers.size() and not found; j++) {
+			found = i->is(conf.demangle_name(drivers[j].first));
 		}
-		else if (i->read && !i->written && !i->scripted)
-		{
-			fprintf(fsim, "adc yadc!%s %s 1.5 0.3\n", mname.c_str(), name.c_str());
-			fprintf(ftest, "yadc %s %s 0 prsimADC\n", mname.c_str(), mname.c_str());
+		if (not found) {
+			string name = i->name;
+			string mname = conf.mangle_name(name);
+
+			// If the signal is driven by the production rules then it comes from prsim. Otherwise it goes to prsim
+			if ((i->written || i->scripted) && find(vlist.begin(), vlist.end(), i) != vlist.end())
+			{
+				fprintf(fsim, "dac %s ydac!%s %g 143e-12 143e-12\n", name.c_str(), mname.c_str(), conf.Vdd);
+				fprintf(ftest, "ydac %s %s 0 prsimDAC\n", mname.c_str(), mname.c_str());
+			}
+			else if (i->read && !i->written && !i->scripted)
+			{
+				fprintf(fsim, "adc yadc!%s %s %g %g\n", mname.c_str(), name.c_str(), conf.Vtp, conf.Vtn);
+				fprintf(ftest, "yadc %s %s 0 prsimADC\n", mname.c_str(), mname.c_str());
+			}
 		}
 	}
 
@@ -186,15 +181,13 @@ int main(int argc, char **argv)
 	fsim = NULL;
 
 	// Print footer for spice test file
-	fprintf(ftest, "\n.model prsimADC ADC(settlingtime=143ps uppervoltagelimit=1.8 lowervoltagelimit=0)\n");
+	fprintf(ftest, "\n.model prsimADC ADC(settlingtime=143ps uppervoltagelimit=%g lowervoltagelimit=0)\n", conf.Vdd);
 	fprintf(ftest, ".model prsimDAC DAC(tr=143e-12 tf=143e-12)\n\n");
 
 	// Instantiate DUT
 	fprintf(ftest, "x%s", instance.c_str());
-	for (int i = 2; i < (int)subckt.size(); i++) {
-		string name = demangle_name(subckt[i], mangle);
-		pr_index index = prset.indexof(name);
-		string mname = mangle_name(index->name, mangle);
+	for (int i = 0; i < (int)vlist.size(); i++) {
+		string mname = conf.mangle_name(vlist[i]->name);
 		fprintf(ftest, " %s", mname.c_str());
 	}
 	fprintf(ftest, " %s\n\n", spice_process.c_str());
