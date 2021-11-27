@@ -25,7 +25,7 @@ int main(int argc, char **argv)
 	string dir = "";
 	bool pack = false;
 	string prs2net_flags = "";
-	string sources = "g.Vdd=1.0v;g.GND=0.0v";
+	string sources = "g.Vdd=1.0;g.GND=0.0";
 
 	for (int i = 1; i < argc; i++)
 	{
@@ -39,6 +39,8 @@ int main(int argc, char **argv)
 			dir = argv[i];
 		else if (string(argv[i]) == "-s" && ++i < argc)
 			sources = argv[i];
+		else if (string(argv[i]) == "-scale" && ++i < argc)
+			prs2net_flags += "-s " + string(argv[i]);
 		else if (string(argv[i]) == "-pack")
 			pack = true;
 		else if (string(argv[i]) == "-B")
@@ -65,13 +67,7 @@ int main(int argc, char **argv)
 
 	// Create the run directory
 	exec("mkdir " + dir);
-	if (to_string(getenv("PRSPICE_INSTALL")) == "")
-	{
-		printf("please define the PRSPICE_INSTALL path\n");
-		exit(1);
-	}
-	exec("cp " + to_string(getenv("PRSPICE_INSTALL")) + "/* " + dir);
-
+	
 	string config_path = find_config(config);
 
 	// get the mangle string
@@ -94,181 +90,122 @@ int main(int argc, char **argv)
 	string spice_process = act_to_spice(process);
 
 	vector<string> subckt = split(exec("grep \".subckt " + spice_process + "\" " + dir + "/dut.spi", debug), " \t\n\r");
-	vector<string> wrapper_subckt;
 
 	vector<pair<string, string> > drivers = parse_sources(sources);
-	for (int i = 0; i < (int)drivers.size(); i++)
+	for (int i = 0; i < (int)drivers.size(); i++) {
 		drivers[i].first = mangle_name(drivers[i].first, mangle);
-
-	FILE *ftest = fopen((dir + "/test.spi").c_str(), "a");
-	if (ftest == NULL)
-	{
-		printf("unable to open test file\n");
-		exit(1);
 	}
 
-	fprintf(ftest, "\n");
-	fprintf(ftest, ".global");
-	for (int i = 0; i < (int)drivers.size(); i++)
-		fprintf(ftest, " %s", drivers[i].first.c_str());
-	fprintf(ftest, "\n");
-	for (int i = 0; i < (int)drivers.size(); i++)
-		fprintf(ftest, "vpwr%d %s 0 dc %s\n", i, drivers[i].first.c_str(), drivers[i].second.c_str());
-	fprintf(ftest, "\n");
-	fprintf(ftest, ".inc %s/lib/spice/%s.spi\n", getenv("ACT_HOME"), config.c_str());
-	fprintf(ftest, ".inc dut.spi\n\n");
-	fprintf(ftest, ".print v(*)\n");
-	for (int i = 0; i < (int)drivers.size(); i++)
-		fprintf(ftest, ".print in(%s)\n", drivers[i].first.c_str());
-	fprintf(ftest, ".end\n");
+	// Load dbase
+	production_rule_set prset;
+	prset.load_dbase(dir + "/dbase.dat");
+	prset.load_script(script_file, mangle);
+	vector<pr_index> vlist;
 
 	for (int i = 2; i < (int)subckt.size(); i++)
 	{
 		bool found = false;
 		for (int j = 0; j < (int)drivers.size() && !found; j++)
 			found = (drivers[j].first == subckt[i]);
-		
-		if (!found)	
-			wrapper_subckt.push_back(subckt[i]);
+
+		if (!found) {
+			string name = demangle_name(subckt[i], mangle);
+			pr_index index = prset.indexof(name);
+			if (index == prset.variables.end())
+				index = prset.indexof(instance + "." + name);
+
+			if (index == prset.variables.end())
+				vlist.push_back(prset.set(name));
+			else
+				vlist.push_back(index);
+		}
 	}
 
-	string wrapper = "\n.subckt wrapper " + join(wrapper_subckt, " ") + "\n";
-	wrapper += "x" + instance;
-	for (int i = 2; i < (int)subckt.size(); i++)
-		wrapper += " " + subckt[i];
-	wrapper += " " + spice_process + "\n.ends\n";
+	// Generate spice test file and prsim script file
 
-	// add it to the spice netlist for the device under test
-	FILE *fdut = fopen((dir + "/dut.spi").c_str(), "a");
-	if (fdut == NULL)
-	{
-		printf("unable to open dut file\n");
+	// Print header for spice test file
+	FILE *ftest = fopen((dir + "/test.spi").c_str(), "a");
+	if (ftest == NULL) {
+		printf("unable to open test file\n");
 		exit(1);
 	}
-
-	fprintf(fdut, "%s", wrapper.c_str());
-
-	fclose(fdut);
-
-	// Generate the verilog glue
-	production_rule_set prset;
-	prset.load_dbase(dir + "/dbase.dat");
-	prset.load_script(script_file, mangle);
-	vector<pr_index> vlist;
-	for (int i = 0; i < (int)wrapper_subckt.size(); i++)
-	{
-		string name = demangle_name(wrapper_subckt[i], mangle);
-		pr_index index = prset.indexof(name);
-		if (index == prset.variables.end())
-			index = prset.indexof(instance + "." + name);
-
-		if (index == prset.variables.end())
-			vlist.push_back(prset.set(name));
-		else
-			vlist.push_back(index);
+	
+	for (int i = 0; i < (int)drivers.size(); i++)
+		fprintf(ftest, ".global %s\n", drivers[i].first.c_str());
+	fprintf(ftest, "\n");
+	for (int i = 0; i < (int)drivers.size(); i++)
+		fprintf(ftest, "vpwr%d %s 0 dc %s\n", i, drivers[i].first.c_str(), drivers[i].second.c_str());
+	fprintf(ftest, "\n");
+	fprintf(ftest, ".inc %s/lib/spice/%s.spi\n", getenv("ACT_HOME"), config.c_str());
+	fprintf(ftest, ".inc dut.spi\n\n");
+	
+	// Print header for prsim script file
+	FILE *fsim = fopen((dir + "/prsim.rc").c_str(), "w");
+	if (fsim == NULL) {
+		printf("unable to open prsim script file\n");
+		exit(1);
 	}
+	fprintf(fsim, "netlist test.spi\n");
 
-	string verilog = "";
-	verilog += "`timescale 1ns / 1ps;\n\n";
-
-	// First generate the hsim wrapper
-	verilog += "module wrapper(" + join(wrapper_subckt, ", ") + ");\n";
-	for (int i = 0; i < (int)vlist.size(); i++)
-	{
-		string direction = "output";
-		if (tolower(wrapper_subckt[i]).find("reset") != -1 || vlist[i]->written || vlist[i]->scripted)
-			direction = "input";
-
-		verilog += "\t" + direction + " " + wrapper_subckt[i] + ";\n";
-	}
-	verilog += "\tinitial $nsda_module();\n";
-	verilog += "endmodule\n\n";
-
-	// Now the prsim environment
-	verilog += "module top;\n";
-	// define all of the signals
-	for (pr_index i = prset.variables.begin(); i != prset.variables.end(); i++)
-	{
-		// If the signal is driven in the prsim script, then its a register. Otherwise, its a wire
-		string name = i->name;
-		string mname = mangle_name(name, mangle);
-		if ((find(vlist.begin(), vlist.end(), i) != vlist.end() && i->read && i->written) || 
-			(i->written && !i->read) || 
-			(i->read && !i->written && !i->scripted) ||
-			(!i->scripted && i->asserted) ||
-			(!i->written && !i->read && !i->scripted && !i->asserted))
-			verilog += "\twire " + mname + ";\n";
-		else if (i->scripted)
-			verilog += "\treg " + mname + ";\n";
-	}
-	verilog += "\n";
-
-	// connect the prsim environment
-	verilog += "\tinitial begin\n";
-	verilog += "\t\t$timeformat(-12, 0, \"\", 10);\n";
-	verilog += prset.init;
-
-	// hack to prevent initial dc-initialization from messing with prsim
-	if (pack)
-		verilog += "\t\t$packprsim(\"env.prs\", \"names\");\n";
-	else
-		verilog += "\t\t$prsim(\"env.prs\");\n";
-	FILE *fxprs = fopen((dir + "/hsim.xprs").c_str(), "w");
-
+	// Connect signals
 	for (pr_index i = prset.variables.begin(); i != prset.variables.end(); i++)
 	{
 		string name = i->name;
 		string mname = mangle_name(name, mangle);
 
 		// If the signal is driven by the production rules then it comes from prsim. Otherwise it goes to prsim
-		if (i->written && find(vlist.begin(), vlist.end(), i) != vlist.end())
+		if ((i->written || i->scripted) && find(vlist.begin(), vlist.end(), i) != vlist.end())
 		{
-			verilog += "\t\t$from_prsim(\"" + name + "\", \"" + mname + "\");\n";
-			fprintf(fxprs, "= \"%s\" \"%s\"\n", name.c_str(), mname.c_str());
+			fprintf(fsim, "dac %s ydac!%s 1.8 143e-12 143e-12\n", name.c_str(), mname.c_str());
+			fprintf(ftest, "ydac %s %s 0 prsimDAC\n", mname.c_str(), mname.c_str());
 		}
-		else if (i->read && !i->written)
+		else if (i->read && !i->written && !i->scripted)
 		{
-			verilog += "\t\t$to_prsim(\"" + mname + "\", \"" + name + "\");\n";
-			fprintf(fxprs, "= \"%s\" \"%s\"\n", name.c_str(), mname.c_str());
-		}
-	}
-	verilog += "\n";
-
-	fclose(fxprs);
-
-	// copy in the loaded script
-	verilog += prset.script;
-	verilog += "\tend\n";
-	verilog += "\n";
-	// define an instance of the wrapper
-	verilog += "\twrapper dut(";
-	for (int i = 0; i < (int)vlist.size(); i++)
-	{
-		if (i != 0)
-			verilog += ", ";
-		verilog += mangle_name(vlist[i]->name, mangle);
-	}
-	verilog += ");\n\n";
-
-	for (pr_index i = prset.variables.begin(); i != prset.variables.end(); i++)
-    {
-		// If the signal is driven in the prsim script, then its a register. Otherwise, its a wire
-		string name = i->name;
-		string mname = mangle_name(name, mangle);
-		if (!i->written && !i->read && (i->scripted || i->asserted))
-		{
-			verilog += "\talways @(posedge " + mname + ") begin\n";
-			verilog += "\t\t$display(\"\t%t " + name + " : 1\", $realtime);\n";
-			verilog += "\tend\n\n";
-			verilog += "\talways @(negedge " + mname + ") begin\n";
-			verilog += "\t\t$display(\"\t%t " + name + " : 0\", $realtime);\n";
-			verilog += "\tend\n\n";
+			fprintf(fsim, "adc yadc!%s %s 1.5 0.3\n", mname.c_str(), name.c_str());
+			fprintf(ftest, "yadc %s %s 0 prsimADC\n", mname.c_str(), mname.c_str());
 		}
 	}
 
-	verilog += "endmodule\n";
 	
-	FILE *fver = fopen((dir + "/test.v").c_str(), "w");
-	fprintf(fver, "%s", verilog.c_str());
-	fclose(fver);
+	// Print footer for prsim script file
+	FILE *fscript = fopen(script_file.c_str(), "r");
+	if (fscript == NULL) {
+		printf("unable to read input prsim script\n");
+		exit(1);
+	}
+
+	int buffer_len = 1024;
+	char buffer[buffer_len];
+	while (!feof(fscript)) {
+		size_t n = fread(buffer, sizeof(char), buffer_len, fscript);
+		fwrite(buffer, sizeof(char), n, fsim);
+	}
+	fclose(fscript);
+	
+	fclose(fsim);
+	fsim = NULL;
+
+	// Print footer for spice test file
+	fprintf(ftest, "\n.model prsimADC ADC(settlingtime=143ps uppervoltagelimit=1.8 lowervoltagelimit=0)\n");
+	fprintf(ftest, ".model prsimDAC DAC(tr=143e-12 tf=143e-12)\n\n");
+
+	// Instantiate DUT
+	fprintf(ftest, "x%s", instance.c_str());
+	for (int i = 2; i < (int)subckt.size(); i++) {
+		string name = demangle_name(subckt[i], mangle);
+		pr_index index = prset.indexof(name);
+		string mname = mangle_name(index->name, mangle);
+		fprintf(ftest, " %s", mname.c_str());
+	}
+	fprintf(ftest, " %s\n\n", spice_process.c_str());
+
+	fprintf(ftest, ".print tran format=gnuplot v(*)");
+	for (int i = 0; i < (int)drivers.size(); i++)
+		fprintf(ftest, " i(vpwr%d)", i);
+	fprintf(ftest, "\n\n");
+	fprintf(ftest, ".tran 0 20e-4\n\n");
+	fprintf(ftest, ".end\n");
+
+	fclose(ftest);
+	ftest = NULL;
 }

@@ -13,7 +13,7 @@ export defproc test(globals g; e1of<2> L, R)
 		~g._pReset | ~L.e -> L.d[0]-
 		g._sReset & L.e -> L.d[1]+
 		~g._pReset | ~L.e -> L.d[1]-
-		R.d[0] | R.d[1] -> R.e-
+		(R.d[0] | R.d[1]) -> R.e-
 		~R.d[0] & ~R.d[1] -> R.e+
 	}
 }

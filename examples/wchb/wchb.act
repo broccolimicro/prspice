@@ -10,9 +10,9 @@ export defproc wchb(globals g; e1of<2> L, R)
 		g._sReset & R.e & L.e & L.d[0] -> _R.d[0]-
 		g._sReset & R.e & L.e & L.d[1] -> _R.d[1]-
 		g._sReset & Rv -> L.e-
-		~g._pReset | ~R.e & ~L.e & ~L.d[0] -> _R.d[0]+
-		~g._pReset | ~R.e & ~L.e & ~L.d[1] -> _R.d[1]+
-		~g._pReset | ~Rv -> L.e+
+		~g._sReset | ~R.e & ~L.e & ~L.d[0] -> _R.d[0]+
+		~g._sReset | ~R.e & ~L.e & ~L.d[1] -> _R.d[1]+
+		~g._sReset | ~Rv -> L.e+
 		~_R.d[0] -> R.d[0]+
 		_R.d[0] -> R.d[0]-
 		~_R.d[1] -> R.d[1]+

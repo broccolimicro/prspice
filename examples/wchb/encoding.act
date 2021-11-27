@@ -3,8 +3,6 @@ import "logic.act";
 export template <pint N>
 deftype c1of <: int (bool d[N])
 {
-	set { }
-	get { }
 }
 
 export template <pint M, N, sz>

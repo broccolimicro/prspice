@@ -11,24 +11,18 @@ export template <pint N>
 defchan e1of <: chan(int) (c1of<N> b; bool d[N]; bool e)
 {
 	d = b.d;
-	send { }
-	recv { }
 }
 
 export template <pint N>
 defchan ev1of <: chan(int) (c1of<N> b; bool d[N]; bool e, v)
 {
 	d = b.d;
-	send { }
-	recv { }
 }
 
 export template <pint N>
 defchan en1of <: chan(int) (c1of<N> b; bool d[N]; bool e, n)
 {
 	d = b.d;
-	send { }
-	recv { }
 }
 
 /************************************
@@ -40,22 +34,16 @@ defchan en1of <: chan(int) (c1of<N> b; bool d[N]; bool e, n)
 export template <pint M, N>
 defchan eMx1ofN <: chan(int) (c1of<N> b[M]; bool e)
 {
-	send { }
-	recv { }
 }
 
 export template <pint M, N>
 defchan evMx1ofN <: chan(int) (c1of<N> b[M]; bool e, v)
 {
-	send { }
-	recv { }
 }
 
 export template <pint M, N>
 defchan enMx1ofN <: chan(int) (c1of<N> b[M]; bool e, n)
 {
-	send { }
-	recv { }
 }
 
 
@@ -69,24 +57,18 @@ export template <pint N>
 defchan a1of <: chan(int) (c1of<N> b; bool d[N]; bool a)
 {
 	d = b.d;
-	send { }
-	recv { }
 }
 
 export template <pint N>
 defchan av1of <: chan(int) (c1of<N> b; bool d[N]; bool a, v)
 {
 	d = b.d;
-	send { }
-	recv { }
 }
 
 export template <pint N>
 defchan an1of <: chan(int) (c1of<N> b; bool d[N]; bool a, n)
 {
 	d = b.d;
-	send { }
-	recv { }
 }
 
 /************************************
@@ -98,21 +80,15 @@ defchan an1of <: chan(int) (c1of<N> b; bool d[N]; bool a, n)
 export template <pint M, N>
 defchan aMx1ofN <: chan(int) (c1of<N> b[M]; bool a)
 {
-	send { }
-	recv { }
 }
 
 export template <pint M, N>
 defchan avMx1ofN <: chan(int) (c1of<N> b[M]; bool a, v)
 {
-	send { }
-	recv { }
 }
 
 export template <pint M, N>
 defchan anMx1ofN <: chan(int) (c1of<N> b[M]; bool a, n)
 {
-	send { }
-	recv { }
 }
 

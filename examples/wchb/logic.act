@@ -66,19 +66,19 @@ defproc and(globals g; bool a[N], b)
 		[ reset0 | reset1 ->
 			[ reset != invert ->
 				prs<g.Vdd, g.GND> {
-					 g.sReset     | (&:i:N:  a[i]<nA> ) -> _b-
-					~g.sReset<p2> & (|:i:N: ~a[i]<p2> ) -> _b+
+					 g.sReset     | (&i:N:  a[i]<nA> ) -> _b-
+					~g.sReset<p2> & (|i:N: ~a[i]<p2> ) -> _b+
 				}
 			[] reset = invert ->
 				prs<g.Vdd, g.GND> {
-					 g._sReset<nB> & (&:i:N:  a[i]<nB> ) -> _b-
-					~g._sReset     | (|:i:N: ~a[i]<p1> ) -> _b+
+					 g._sReset<nB> & (&i:N:  a[i]<nB> ) -> _b-
+					~g._sReset     | (|i:N: ~a[i]<p1> ) -> _b+
 				}
 			]
 		[] ~reset0 & ~reset1 ->
 			prs <g.Vdd, g.GND> {
-				(&:i:N:  a[i]<nA> ) -> _b-
-				(|:i:N: ~a[i]<p1> ) -> _b+
+				(&i:N:  a[i]<nA> ) -> _b-
+				(|i:N: ~a[i]<p1> ) -> _b+
 			}
 		]
 
@@ -123,19 +123,19 @@ defproc or(globals g; bool a[N], b)
 		[ reset0 | reset1 ->
 			[ reset != invert ->
 				prs<g.Vdd, g.GND> {
-					 g.sReset     | (|:i:N:  a[i]<n2> ) -> _b-
-					~g.sReset<pB> & (&:i:N: ~a[i]<pB> ) -> _b+
+					 g.sReset     | (|i:N:  a[i]<n2> ) -> _b-
+					~g.sReset<pB> & (&i:N: ~a[i]<pB> ) -> _b+
 				}
 			[] reset = invert ->
 				prs<g.Vdd, g.GND> {
-					 g._sReset<n2> & (|:i:N:  a[i]<n2> ) -> _b-
-					~g._sReset     | (&:i:N: ~a[i]<pA> ) -> _b+
+					 g._sReset<n2> & (|i:N:  a[i]<n2> ) -> _b-
+					~g._sReset     | (&i:N: ~a[i]<pA> ) -> _b+
 				}
 			]
 		[] ~reset0 & ~reset1 ->
 			prs <g.Vdd, g.GND> {
-				(|:i:N:  a[i]<n1> ) -> _b-
-				(&:i:N: ~a[i]<pA> ) -> _b+
+				(|i:N:  a[i]<n1> ) -> _b-
+				(&i:N: ~a[i]<pA> ) -> _b+
 			}
 		]
 
@@ -179,19 +179,19 @@ defproc acelem_hcta(globals g; bool dn[ND], up[NU], b)
 	[ reset0 | reset1 ->
 		[ reset != invert ->
 			prs<g.Vdd, g.GND> {
-				[comb=1]  g.sReset     | (&:i:ND:  dn[i]<nA> ) -> _b-
-				[comb=1] ~g.sReset<pB> & (&:i:NU: ~up[i]<pB> ) -> _b+
+				[comb=1]  g.sReset     | (&i:ND:  dn[i]<nA> ) -> _b-
+				[comb=1] ~g.sReset<pB> & (&i:NU: ~up[i]<pB> ) -> _b+
 			}
 		[] reset = invert ->
 			prs<g.Vdd, g.GND> {
-				[comb=1]  g._sReset<nB> & (&:i:ND:  dn[i]<nB> ) -> _b-
-				[comb=1] ~g._sReset     | (&:i:NU: ~up[i]<pA> ) -> _b+
+				[comb=1]  g._sReset<nB> & (&i:ND:  dn[i]<nB> ) -> _b-
+				[comb=1] ~g._sReset     | (&i:NU: ~up[i]<pA> ) -> _b+
 			}
 		]
 	[] ~reset0 & ~reset1 ->
 		prs <g.Vdd, g.GND> {
-			[comb=1] (&:i:ND:  dn[i]<nA> ) -> _b-
-			[comb=1] (&:i:NU: ~up[i]<pA> ) -> _b+
+			[comb=1] (&i:ND:  dn[i]<nA> ) -> _b-
+			[comb=1] (&i:NU: ~up[i]<pA> ) -> _b+
 		}
    	]
 

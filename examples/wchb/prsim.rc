@@ -10,15 +10,15 @@ set g._pReset 0
 set g.pReset 1
 watchall
 
-advance 50
+advance 40
 
 set g._pReset 1
 set g.pReset 0
 
-advance 20
+advance 40
 
 mode run
 set g._sReset 1
 set g.sReset 0
 
-advance 150
+advance 1000
