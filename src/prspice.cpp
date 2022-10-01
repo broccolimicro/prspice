@@ -73,7 +73,7 @@ int main(int argc, char **argv)
 	conf.load(tech);	
 
 	// Generate the production rules for the environment
-	string flat = "aflat -DDUT=false -DLAYOUT=false -DPRSIM=false " + test_file + " | prdbase \"" + script_file + "\" \"" + dir + "/dbase.dat\" \"" + instance + "\"";
+	string flat = "aflat -T" + tech + " -DDUT=false -DLAYOUT=false -DPRSIM=false " + test_file + " | prdbase \"" + script_file + "\" \"" + dir + "/dbase.dat\" \"" + instance + "\"";
 	if (pack)
 		flat += " | prspack " + dir + "/names";
 	flat += " > " + dir + "/env.prs";
