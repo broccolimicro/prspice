@@ -27,11 +27,14 @@ int main(int argc, char **argv)
 	bool pack = false;
 	string prs2net_flags = "";
 	string sources = "g.Vdd=1.0;g.GND=0.0";
+	string corner = "tt";
 
 	for (int i = 1; i < argc; i++)
 	{
 		if (string(argv[i]) == "-C" && ++i < argc)
 			tech = argv[i];
+		else if (string(argv[i]) == "-c" && ++i < argc)
+			corner = argv[i];
 		else if (string(argv[i]) == "-p" && ++i < argc)
 			process = argv[i];
 		else if (string(argv[i]) == "-i" && ++i < argc)
@@ -127,7 +130,7 @@ int main(int argc, char **argv)
 	for (int i = 0; i < (int)drivers.size(); i++)
 		fprintf(ftest, "vpwr%d %s 0 dc %s\n", i, drivers[i].first.c_str(), drivers[i].second.c_str());
 	fprintf(ftest, "\n");
-	fprintf(ftest, ".inc %s/lib/spice/%s.spi\n", getenv("ACT_HOME"), tech.c_str());
+	fprintf(ftest, ".inc %s/conf/%s/xyce/%s.spi\n", getenv("ACT_HOME"), tech.c_str(), corner.c_str());
 	fprintf(ftest, ".inc dut.spi\n\n");
 	
 	// Print header for prsim script file
