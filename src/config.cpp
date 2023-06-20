@@ -44,6 +44,9 @@ void config::load(string tech)
 {
 	string filename = get_path(tech);
 	FILE *fptr = fopen(filename.c_str(), "r");
+	if (fptr == NULL) {
+		printf("error: unable to open process technology config file\n");
+	}
 
 	while (!feof(fptr)) {
 		vector<string> line = split(trim(getline(fptr), " \n\r\t"), " ");

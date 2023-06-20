@@ -87,7 +87,7 @@ int main(int argc, char **argv)
 	exec(spice_str, debug);
 	
 	// Generate a wrapper spice subcircuit to connect up power and ground
-	string spice_process = act_to_spice(process);
+	string spice_process = conf.mangle_name(process);
 
 	vector<string> subckt = split(exec("grep \".subckt " + spice_process + "\" " + dir + "/dut.spi", debug), " \t\n\r");
 
