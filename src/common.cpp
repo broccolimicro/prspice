@@ -21,30 +21,6 @@ string exec(string cmd, bool debug)
 	return result;
 }
 
-
-string act_to_spice(string proc)
-{
-	string result;
-	for (int i = 0; i < (int)proc.size(); i++)
-	{
-		if (proc[i] == '<' || proc[i] == '>' || proc[i] == ',')
-			result += "_";
-		else if (proc[i] == ':' && i+1 < (int)proc.size() && proc[i+1] == ':')
-		{
-			if (i != 0)
-				result += "_";
-			i++;
-		}
-		else if (proc[i] != ' ')
-			result += proc[i];
-	}
-
-	if (result.substr(result.size()-2, 2) == "__")
-		return result.substr(0, result.size()-2);
-	else
-		return result;
-}
-
 vector<string> split(string str, string delim)
 {
 	vector<string> result;

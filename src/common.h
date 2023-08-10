@@ -38,7 +38,6 @@ bool vector_intersects(const vector<type> &v1, const vector<type> &v2)
 }
 
 string exec(string cmd, bool debug=true);
-string act_to_spice(string proc);
 vector<string> split(string str, string delim);
 string join(vector<string> str, string delim);
 string tolower(string str);

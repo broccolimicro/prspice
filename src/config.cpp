@@ -69,6 +69,19 @@ void config::load(string tech)
 	fclose(fptr);	
 }
 
+string config::mangle_process(string name)
+{
+	int start = (int)name.find_first_of("<");
+	int end = (int)name.find_last_of(">");
+	
+	string result = name.substr(0, start);
+	if (start == -1 || end == -1 || end == start+1) {
+		return result;
+	}
+
+	return result + mangle_name(name.substr(start));
+}
+
 string config::mangle_name(string name)
 {
 	std::ostringstream result;

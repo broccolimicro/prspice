@@ -15,7 +15,8 @@ struct config
 
 	string get_path(string tech);
 	void load(string tech);
-	
+
+	string mangle_process(string name);	
 	string mangle_name(string name);
 	string demangle_name(string name);
 };
