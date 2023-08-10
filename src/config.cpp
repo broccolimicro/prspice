@@ -74,12 +74,11 @@ string config::mangle_process(string name)
 	int start = (int)name.find_first_of("<");
 	int end = (int)name.find_last_of(">");
 	
-	string result = name.substr(0, start);
 	if (start == -1 || end == -1 || end == start+1) {
-		return result;
+		return name.substr(0, start);
 	}
 
-	return result + mangle_name(name.substr(start));
+	return mangle_name(name);
 }
 
 string config::mangle_name(string name)
