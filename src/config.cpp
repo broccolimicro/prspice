@@ -16,57 +16,72 @@ config::~config()
 
 string config::get_path(string tech)
 {
-	string config_path = tech;
-	if (!file_exists(config_path) && config_path[0] != '/')
-	{
-		char *cad = getenv("ACT_HOME");
-		if (cad != NULL)
-		{
-			config_path = string(cad) + "/conf/" + config_path + "/global";
-
-			if (!file_exists(config_path) && config_path.find(".conf") == -1)
-				config_path += ".conf";
-		}
-		else
-			printf("Please set the ACT_HOME environment variable.\n");
-	}
-
-	if (!file_exists(config_path))
-	{
-		printf("Process technology config file not found\n");
-		exit(1);
+	string config_path = "/conf/" + tech + "/";
+	char *cad = getenv("ACT_HOME");
+	if (cad != NULL) {
+		config_path = string(cad) + config_path;
+	} else {
+		printf("Please set the ACT_HOME environment variable.\n");
 	}
 
 	return config_path;
 }
 
+string config::resolve_include(string include)
+{
+	string target = include;
+	char *cad = getenv("ACT_HOME");
+	if (cad != NULL) {
+		target = replace(include, "${ACT_HOME}", string(cad));
+	} else {
+		printf("Please set the ACT_HOME environment variable.\n");
+	}
+
+	if (!file_exists(target)) {
+		printf("Process technology config file not found\n");
+		exit(1);
+	}
+
+	return target;
+}
+
 void config::load(string tech)
 {
-	string filename = get_path(tech);
-	FILE *fptr = fopen(filename.c_str(), "r");
-	if (fptr == NULL) {
-		printf("error: unable to open process technology config file\n");
-	}
+	vector<string> stack;
+	stack.push_back(get_path(tech) + "prs2net.conf");
+	stack.push_back(get_path(tech) + "global.conf");
 
-	while (!feof(fptr)) {
-		vector<string> line = split(trim(getline(fptr), " \n\r\t"), " ");
+	while ((int)stack.size() > 0) {
+		FILE *fptr = fopen(stack.back().c_str(), "r");
+		if (fptr == NULL) {
+			printf("error: unable to open process technology config file\n");
+		}
+		stack.pop_back();
 
-		if (line.size() >= 3) {
-			if (line[1] == "mangle_chars") {
-				mangle_chars = line[2].substr(1, line[2].size()-2);
-			} else if (line[1] == "mangle_letter") {
-				mangle_letter = line[2].substr(1, line[2].size()-2);
-			} else if (line[0] == "real" and line[1] == "Vdd") {
-				Vdd = atof(line[2].c_str());
-			} else if (line[0] == "real" and line[1] == "V_high") {
-				Vtp = atof(line[2].c_str());
-			} else if (line[0] == "real" and line[1] == "V_low") {
-				Vtn = atof(line[2].c_str());
+		while (!feof(fptr)) {
+			vector<string> line = split(trim(getline(fptr), " \n\r\t"), " ");
+
+			if (line.size() == 2) {
+				if (line[0] == "include") {
+					stack.push_back(resolve_include(trim(line[1], "\"\'")));
+				}
+			} else if (line.size() >= 3) {
+				if (line[1] == "mangle_chars") {
+					mangle_chars = line[2].substr(1, line[2].size()-2);
+				} else if (line[1] == "mangle_letter") {
+					mangle_letter = line[2].substr(1, line[2].size()-2);
+				} else if (line[0] == "real" and line[1] == "Vdd") {
+					Vdd = atof(line[2].c_str());
+				} else if (line[0] == "real" and line[1] == "V_high") {
+					Vtp = atof(line[2].c_str());
+				} else if (line[0] == "real" and line[1] == "V_low") {
+					Vtn = atof(line[2].c_str());
+				}
 			}
 		}
-	}
 
-	fclose(fptr);	
+		fclose(fptr);
+	}
 }
 
 string config::mangle_process(string name)

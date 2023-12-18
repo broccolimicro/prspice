@@ -45,4 +45,4 @@ bool file_exists(string name);
 string trim(string name, string discard);
 string getline(FILE *fptr);
 void copy_replace(char *target, const char *source, const char *search, int replace);
-
+string replace(string source, string search, string replace);

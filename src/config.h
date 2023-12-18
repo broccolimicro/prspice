@@ -14,6 +14,7 @@ struct config
 	string mangle_letter;
 
 	string get_path(string tech);
+	string resolve_include(string include);
 	void load(string tech);
 
 	string mangle_process(string name);	

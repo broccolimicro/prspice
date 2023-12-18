@@ -112,3 +112,19 @@ void copy_replace(char *target, const char *source, const char *search, int repl
 	}
 }
 
+string replace(string source, string search, string replace)
+{
+	string target;
+	int j = 0;
+	for (int i = 0; i < (int)source.size() - (int)search.size(); ) {
+		if (source.substr(i, search.size()) == search) {
+			target += source.substr(j, i-j) + replace;
+			i += search.size();
+			j = i;
+		} else {
+			i++;
+		}
+	}
+	target += source.substr(j, -1);
+	return target;
+}
