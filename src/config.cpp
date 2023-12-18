@@ -48,7 +48,8 @@ string config::resolve_include(string include)
 void config::load(string tech)
 {
 	vector<string> stack;
-	stack.push_back(get_path(tech) + "prs2net.conf");
+	stack.push_back(get_path(tech) + "actsim.conf");
+	stack.push_back(get_path(tech) + "lint.conf");
 	stack.push_back(get_path(tech) + "global.conf");
 
 	while ((int)stack.size() > 0) {
