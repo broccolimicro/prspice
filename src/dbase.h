@@ -35,12 +35,12 @@ struct channel
 		this->name = name;
 		this->protocol = protocol;
 		if (req.size() > 0)
-			this->req = name + "." + req;
+			this->req = req;
 		else
 			this->req = name + ".d";
 
 		if (ack.size() > 0)
-			this->ack = name + "." + ack;
+			this->ack = ack;
 		else
 			this->ack = name + "." + this->protocol[0];
 	}

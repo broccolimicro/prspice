@@ -105,12 +105,15 @@ int main(int argc, char **argv)
 	for (int i = 2; i < (int)subckt.size(); i++)
 	{
 		string name = instance + "." + conf.demangle_name(subckt[i]);
+		//printf("look %s\n", name.c_str());
 		pr_index index = prset.indexof(name);	
 
 		if (index == prset.variables.end())
 			vlist.push_back(prset.set(name));
-		else
+		else {
+			//printf("adding\n");
 			vlist.push_back(index);
+		}
 	}
 
 	// Generate spice test file and prsim script file
@@ -152,6 +155,7 @@ int main(int argc, char **argv)
 			string name = i->name;
 			string mname = conf.mangle_name(name);
 
+			//printf("checking %s or %s written:%d scripted:%d read:%d\n", name.c_str(), mname.c_str(), (int)i->written, (int)i->scripted, (int)i->read);
 			// If the signal is driven by the production rules then it comes from prsim. Otherwise it goes to prsim
 			if ((i->written || i->scripted) && find(vlist.begin(), vlist.end(), i) != vlist.end())
 			{
