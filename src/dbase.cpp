@@ -42,7 +42,7 @@ void pr_variable::combine(pr_variable v)
 void pr_variable::add_name(string name, bool is_filtered)
 {
 	int c = count(name.begin(), name.end(), '.');
-	if ((!is_filtered || filtered) && (c < depth || c == depth && name.size() < this->name.size()))
+	if ((!is_filtered || filtered) && (strncmp(name.c_str(), "g.", 2) == 0 || (strncmp(this->name.c_str(), "g.", 2) != 0 && (c < depth || (c == depth && name.size() < this->name.size())))))
 	{
 		this->name = name;
 		depth = c;
